@@ -192,6 +192,40 @@ stock-web/
 
 ---
 
+## Work log
+
+Reverse-chronological. New entries on top. Each entry: date · what shipped · what blocked.
+
+### 2026-06-16 — initial 9-task buildout
+
+What shipped (all 9 tasks ✅):
+
+1. **Repo scaffolding** — `backend/` (uv + Python 3.12), `frontend/` (Next 14), `.gitignore`, README. Verified `uv sync` resolves the path-dep on `vendor/TradingAgents`.
+2. **Backend skeleton + snapshot route** — FastAPI app, CORS, `/healthz`, `market_data.py` unifying yfinance + akshare, `GET /api/snapshot`. Caught + fixed yfinance NaN tail-row bug (current trading day occasionally null).
+3. **Skill runner + `/api/quick` SSE** — vendored Buffett skill (`SKILL.md` + 8 references = 157k char system prompt). DeepSeek streaming via OpenAI SDK + `base_url`. Caught + fixed sse-starlette double `data:` wrap (yield dict, not pre-formatted string).
+4. **TradingAgents runner + `/api/debate` SSE** — LangGraph `stream_mode="values"` translation layer. Diffs successive state snapshots to emit `agent_start / agent_complete / debate_turn / final / done`. Async-wraps the sync `graph.stream()` via `asyncio.Queue + run_in_executor`. **Discovered**: `llm_provider="openai" + backend_url=deepseek` triggers OpenAI Responses API → 404. Fixed by using TA's built-in `llm_provider="deepseek"`.
+5. **Rate limit + daily budget gate** — replaced slowapi (decorator runs before validation, typoed tickers burn quota) with custom sliding-window limiter called *after* snapshot pre-fetch. Redis backend (atomic INCR + EXPIRE NX) with in-memory fallback for local dev. Daily $ cap enforced before SSE opens.
+6. **Frontend skeleton** — Next 14 App Router, Tailwind 3 (deep-blue theme later), shadcn-ish components, recharts K-line, mode selector (snapshot / quick / debate). Verified static export builds and `NEXT_PUBLIC_API_BASE` bakes into the bundle.
+7. **SSE client + UI streaming** — hand-rolled `lib/sse.ts` (`fetch + ReadableStream`, CRLF-tolerant frame parser) since `EventSource` is GET-only. `quick-result.tsx` token-streams markdown like ChatGPT; `debate-stream.tsx` renders agent timeline with collapsible cards. Hero "Final Decision" card extracts BUY/SELL/HOLD verdict, TL;DR sentence (regex over `Executive Summary` / `执行摘要` / `Reasoning` / `理由`), and key facts (price target, stop loss, time horizon, position sizing) lifted into pills.
+8. **Local end-to-end verification** — three real LLM runs: Quick zh AAPL ($0.005, 29 s), Quick en NVDA ($0.005, 36 s), Debate zh AAPL ($0.10, 273 s, 31 chunks, 0 errors). Total ~$0.11. Verified language switching produces 100% Chinese / 100% English with no cross-contamination.
+9. **Deploy scaffolding** — initially Docker compose, **pivoted to bare systemd + nginx + uv on Ubuntu** (saves ~250 MB RAM, no daemon, simpler `journalctl` debugging). Wrote `deploy/setup-server.sh`, `deploy/install.sh`, `deploy/stock-web-backend.service`, `deploy/nginx.conf`, `DEPLOY.md` with two-stage rollout (IP soft-launch → ICP + HTTPS). Verified backend imports under new vendor path and `npm run build` static export succeeds with API base baked in.
+
+Other notable choices made today:
+
+- **DeepSeek V4** (not V3 — that's a misread of the legacy alias `deepseek-chat` which now maps to V4-Flash; aliases retire 2026-07-24). Default split: V4-Pro for debate deep-think, V4-Flash for quick + TA internal calls.
+- **Deep-blue theme** with subtle radial accent at the top (deeper finance/analytics vibe than the original neutral grey).
+- **EN / 中文 i18n** via flat dict in `lib/i18n.tsx` (~150 keys, no i18next). Persists in localStorage; first visit sniffs `navigator.language`. LLM output language passed through to backend (Quick uses tail directive, Debate uses TradingAgents' built-in `output_language="Chinese"`).
+- **Why not Vercel + Railway** — mainland China connectivity is poor; demo audience is friends without VPNs.
+
+Blockers / open from today:
+
+- akshare's eastmoney endpoint fails locally because of an HTTP proxy on this machine — needs verification on a clean Chinese VPS in production.
+- ICP filing not started — domain + 14-21 day filing process is on the user. Stage A (IP-only `:8080`) deploys without it.
+- No automated test suite. Smoke-tested by hand throughout.
+- No live demo URL yet. Will be added once Stage A deploys to a real VPS.
+
+---
+
 ## License
 
 MIT. TradingAgents has its own license — check before redistributing.
