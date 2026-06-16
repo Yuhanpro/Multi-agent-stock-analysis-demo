@@ -1,231 +1,199 @@
 # stock-web
 
-Interactive multi-agent stock analysis demo. Pick a ticker, watch the agents
-argue. Powered by **DeepSeek V4** + the **TradingAgents** multi-agent
-framework + a Buffett-style value-investing skill.
+交互式多智能体股票分析 demo。输入股票代码,看着各个智能体相互辩论。底层由 **DeepSeek V4** + **TradingAgents** 多智能体框架 + 巴菲特风格价值投资 skill 驱动。
 
-> **Research demo.** Not investment advice. The site exists to show what's
-> possible when you wire production-quality LLM agent frameworks into a
-> public-facing UI — not to recommend trades.
+> **研究 demo。** 不构成投资建议。本站旨在展示当生产级 LLM 智能体框架接入面向公众的 UI 时能做到什么 —— 不用于推荐交易。
 
 ---
 
-## What it does
+## 功能介绍
 
-Three modes share the same ticker input (US equities via yfinance, A-shares
-via akshare):
+三种模式共用同一个股票代码输入框(美股走 yfinance,A 股走 akshare):
 
-| Mode | Pipeline | Latency | Cost / run |
+| 模式 | 流水线 | 延迟 | 单次成本 |
 |---|---|---|---|
 | **Snapshot** | yfinance / akshare → JSON | ~1 s | $0 |
-| **Buffett Quick** | snapshot + 158k-char Buffett skill prompt → DeepSeek V4-Flash | ~30 s | ~$0.01 |
-| **TradingAgents Debate** | LangGraph multi-agent: market / news / fundamentals analysts → bull-vs-bear → trader → 4-agent risk debate → final decision | 3-5 min | ~$0.20-0.30 |
+| **Buffett Quick** | snapshot + 158k 字符巴菲特 skill prompt → DeepSeek V4-Flash | ~30 s | ~$0.01 |
+| **TradingAgents Debate** | LangGraph 多智能体:市场 / 新闻 / 基本面分析师 → 多空对辩 → 交易员 → 4 智能体风险辩论 → 最终决策 | 3-5 分钟 | ~$0.20-0.30 |
 
-The frontend renders all three over Server-Sent Events:
+前端通过 Server-Sent Events 渲染三种模式:
 
-- Quick streams **token-by-token** like ChatGPT
-- Debate streams **agent-by-agent**: each analyst card lights up as it
-  finishes, then bull/bear/risk turns appear in a timeline, then a hero
-  verdict card with extracted price target / stop loss / position sizing
+- Quick 模式像 ChatGPT 一样**逐 token** 流式输出
+- Debate 模式**逐智能体**流式输出:每个分析师卡片在完成后亮起,接着多空 / 风险回合按时间线依次展开,最后呈现一张包含目标价 / 止损 / 仓位建议的主结论卡片
 
-Bilingual (English + 简体中文) — switch in the top-right; all agent
-output is generated in the chosen language at the LLM layer (not translated
-post-hoc).
+双语支持(English + 简体中文)—— 右上角切换;所有智能体输出都在 LLM 层用所选语言直接生成,而非事后翻译。
 
 ---
 
-## Stack
+## 技术栈
 
 ```
 [Browser] ──HTTPS/SSE──→ [nginx] ──→ [FastAPI] ──→ DeepSeek V4 API
                             │            │
                             │            ├─→ TradingAgents (LangGraph)
                             │            ├─→ yfinance / akshare
-                            │            └─→ Redis (rate limits + daily budget)
+                            │            └─→ Redis (限流 + 每日预算)
                             │
-                            └─→ static Next.js export (frontend)
+                            └─→ static Next.js export (前端)
 ```
 
-- **Backend** — FastAPI + uv-managed Python 3.12. Streams SSE via
-  `sse-starlette`. The 158k-char Buffett system prompt is loaded once and
-  reused (DeepSeek context cache drops repeat-call cost ~3x). TradingAgents
-  is vendored locally (see `backend/vendor/README.md`).
-- **Frontend** — Next.js 14 App Router + Tailwind 3 + recharts. `output: "export"`
-  produces static HTML/JS — no Node process at runtime.
-- **Deployment** — bare systemd on a single Linux VPS, no Docker. See
-  [DEPLOY.md](./DEPLOY.md).
+- **Backend** —— FastAPI + uv 管理的 Python 3.12。通过 `sse-starlette` 推送 SSE。158k 字符的巴菲特 system prompt 一次加载、反复复用(DeepSeek 上下文缓存让重复调用成本降低约 3 倍)。TradingAgents 以 vendor 方式内置(参见 `backend/vendor/README.md`)。
+- **Frontend** —— Next.js 14 App Router + Tailwind 3 + recharts。`output: "export"` 生成静态 HTML/JS —— 运行时不依赖任何 Node 进程。
+- **Deployment** —— 单台 Linux VPS 上裸跑 systemd,不使用 Docker。详见 [DEPLOY.md](./DEPLOY.md)。
 
 ---
 
-## Local development
+## 本地开发
 
-### One-time setup
+### 一次性配置
 
 ```powershell
-# 1. clone TradingAgents and put it next to this repo
-#    (the backend pyproject.toml expects ./vendor/TradingAgents)
+# 1. 克隆 TradingAgents 到本仓库旁边
+#    (backend 的 pyproject.toml 期望路径为 ./vendor/TradingAgents)
 git clone https://github.com/<TradingAgents-upstream>/TradingAgents.git
 cd stock-web/backend
 robocopy ..\..\TradingAgents vendor\TradingAgents /E `
     /XD .git .venv __pycache__ logs cache `
     /XF *.pyc .env
 
-# 2. install backend deps (Python 3.12 required)
+# 2. 安装后端依赖(需要 Python 3.12)
 uv sync
 
-# 3. install frontend deps (Node 20+ required)
+# 3. 安装前端依赖(需要 Node 20+)
 cd ..\frontend
 npm install
 ```
 
-### Run
+### 运行
 
-Two terminals:
+开两个终端:
 
 ```powershell
-# Terminal 1 — backend
+# 终端 1 —— 后端
 cd stock-web\backend
 $env:DEEPSEEK_API_KEY = "sk-..."
 uv run uvicorn app.main:app --port 8000 --reload
 
-# Terminal 2 — frontend
+# 终端 2 —— 前端
 cd stock-web\frontend
 npm run dev
 ```
 
-Browser → http://localhost:3000
+浏览器打开 → http://localhost:3000
 
-### Get a DeepSeek API key
+### 获取 DeepSeek API key
 
-[platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) — quick analysis costs ~$0.01/run, debate ~$0.20-0.30/run.
+[platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) —— 快速分析每次约 $0.01,深度辩论每次约 $0.20-0.30。
 
 ---
 
-## Layout
+## 仓库布局
 
 ```
 stock-web/
-├── backend/                       # FastAPI + Python 3.12 (uv-managed)
+├── backend/                       # FastAPI + Python 3.12 (uv 管理)
 │   ├── app/
-│   │   ├── main.py                # FastAPI app, CORS, /healthz
-│   │   ├── config.py              # env loader (Settings dataclass)
+│   │   ├── main.py                # FastAPI 应用, CORS, /healthz
+│   │   ├── config.py              # 环境变量加载器 (Settings dataclass)
 │   │   ├── routes/
 │   │   │   ├── snapshot.py        # GET  /api/snapshot
 │   │   │   ├── quick.py           # POST /api/quick   (SSE)
 │   │   │   └── debate.py          # POST /api/debate  (SSE)
 │   │   ├── services/
 │   │   │   ├── market_data.py     # yfinance + akshare
-│   │   │   ├── skill_runner.py    # buffett skill → DeepSeek streaming
-│   │   │   ├── tradingagents_runner.py  # LangGraph stream → SSE events
-│   │   │   ├── rate_limit.py      # per-IP sliding window
-│   │   │   └── budget.py          # daily $ cap (Redis or in-memory)
-│   │   └── prompts/buffett/       # SKILL.md + 8 reference files
-│   ├── vendor/                    # TradingAgents source (gitignored)
-│   └── pyproject.toml             # path-dep on vendor/TradingAgents
+│   │   │   ├── skill_runner.py    # buffett skill → DeepSeek 流式输出
+│   │   │   ├── tradingagents_runner.py  # LangGraph 流 → SSE 事件
+│   │   │   ├── rate_limit.py      # 按 IP 滑动窗口限流
+│   │   │   └── budget.py          # 每日美元上限 (Redis 或内存)
+│   │   └── prompts/buffett/       # SKILL.md + 8 个参考文件
+│   ├── vendor/                    # TradingAgents 源码 (已 gitignore)
+│   └── pyproject.toml             # 路径依赖到 vendor/TradingAgents
 │
 ├── frontend/                      # Next.js 14 (App Router)
 │   ├── app/
-│   │   ├── layout.tsx             # I18nProvider wrap
-│   │   └── page.tsx               # mode selector + state machine
+│   │   ├── layout.tsx             # I18nProvider 包裹
+│   │   └── page.tsx               # 模式选择器 + 状态机
 │   ├── components/
-│   │   ├── stock-input.tsx        # US/CN toggle + ticker
-│   │   ├── snapshot-card.tsx      # K-line chart + 6 fundamental stats
-│   │   ├── quick-result.tsx       # token-streaming markdown
-│   │   ├── debate-stream.tsx      # agent timeline + hero verdict card
+│   │   ├── stock-input.tsx        # 美股/A股切换 + 股票代码
+│   │   ├── snapshot-card.tsx      # K 线图 + 6 项基本面指标
+│   │   ├── quick-result.tsx       # token 流式 markdown
+│   │   ├── debate-stream.tsx      # agent 时间线 + 主结论卡片
 │   │   └── language-switcher.tsx  # EN / 中文
 │   └── lib/
-│       ├── sse.ts                 # SSE-over-POST client (fetch+ReadableStream)
-│       ├── i18n.tsx               # Context + dict (no i18next; ~150 keys)
-│       ├── api.ts                 # fetch wrapper, NEXT_PUBLIC_API_BASE
-│       └── format.ts              # number/pct/price formatters + cn()
+│       ├── sse.ts                 # SSE-over-POST 客户端 (fetch+ReadableStream)
+│       ├── i18n.tsx               # Context + 字典 (不用 i18next; 约 150 个 key)
+│       ├── api.ts                 # fetch 封装, NEXT_PUBLIC_API_BASE
+│       └── format.ts              # 数字/百分比/价格格式化 + cn()
 │
-├── deploy/                        # systemd + nginx for production
-│   ├── setup-server.sh            # one-time bootstrap on a fresh VPS
-│   ├── install.sh                 # idempotent deploy / redeploy
-│   ├── stock-web-backend.service  # systemd unit, hardened
-│   └── nginx.conf                 # SSE-tuned reverse proxy
+├── deploy/                        # 生产环境的 systemd + nginx
+│   ├── setup-server.sh            # 全新 VPS 上的一次性初始化
+│   ├── install.sh                 # 幂等部署 / 重新部署
+│   ├── stock-web-backend.service  # systemd unit, 已做安全加固
+│   └── nginx.conf                 # 针对 SSE 调优的反向代理
 │
 ├── docs/
-│   ├── PLAN.md                    # full design / architecture / what we tried
-│   └── SKILL.md                   # Claude Code skill for continuing work
+│   ├── PLAN.md                    # 完整设计 / 架构 / 走过的弯路
+│   └── SKILL.md                   # 用于延续开发的 Claude Code skill
 │
-├── DEPLOY.md                      # step-by-step deploy + ICP filing notes
-└── README.md                      # this file
+├── DEPLOY.md                      # 分步部署 + ICP 备案说明
+└── README.md                      # 当前文件
 ```
 
 ---
 
-## Notable design choices
+## 关键设计决策
 
-- **No Docker.** systemd + nginx + uv direct. Saves ~250 MB of memory on
-  small VPS, simpler to debug (`journalctl` vs `docker logs`), no daemon
-  to babysit. The trade-off (less environment isolation) doesn't matter
-  on a single-tenant demo box.
-- **SSE-over-POST.** Browser `EventSource` is GET-only; we hand-parse
-  `event:` / `data:` frames in `frontend/lib/sse.ts` so `/api/quick` and
-  `/api/debate` can take JSON bodies. Tuned nginx timeouts and disabled
-  buffering — debate runs ~5 min and would otherwise hit the default 60 s
-  proxy_read_timeout.
-- **Rate limiter runs *after* validation.** slowapi's decorator runs at
-  handler entry, so a typo'd ticker would burn quota; we use a custom
-  sliding-window limiter called explicitly *after* the snapshot pre-fetch
-  succeeds.
-- **TradingAgents stream mode.** LangGraph emits full state snapshots
-  (`stream_mode="values"`), not deltas. The runner diffs successive chunks
-  to detect "agent N just filled in `market_report`" → emits `agent_complete`
-  SSE event. Streaming granularity is per-agent, not per-token, since the
-  graph blocks on each agent's full LLM run.
-- **Buffett skill loaded as one giant system prompt.** SKILL.md +
-  references/*.md totals 158k chars. Inlined at boot; DeepSeek's implicit
-  context cache makes repeat calls ~3x cheaper.
+- **不用 Docker。** systemd + nginx + uv 直接运行。在小型 VPS 上节省约 250 MB 内存,调试更简单(`journalctl` vs `docker logs`),没有需要照看的守护进程。代价(更弱的环境隔离)在单租户的 demo 机器上无关紧要。
+- **SSE-over-POST。** 浏览器 `EventSource` 只支持 GET;我们在 `frontend/lib/sse.ts` 中手动解析 `event:` / `data:` 帧,这样 `/api/quick` 和 `/api/debate` 就能接收 JSON 请求体。调优了 nginx 超时并关闭了缓冲 —— debate 运行约 5 分钟,否则会撞上默认的 60 s `proxy_read_timeout`。
+- **限流器在校验*之后*运行。** slowapi 的装饰器在 handler 入口运行,因此一个拼错的 ticker 也会消耗额度;我们使用自定义的滑动窗口限流器,在 snapshot 预取成功 *之后* 显式调用。
+- **TradingAgents 流模式。** LangGraph 发出的是完整状态快照(`stream_mode="values"`),而不是增量。runner 对相邻 chunk 做 diff 来检测 "agent N 刚刚填入了 `market_report`" → 发出 `agent_complete` SSE 事件。流式粒度是 per-agent 而非 per-token,因为图在每个 agent 的完整 LLM 调用上阻塞。
+- **巴菲特 skill 整体作为一个超大 system prompt 加载。** SKILL.md + references/*.md 共计 158k 字符。启动时内联;DeepSeek 的隐式上下文缓存让重复调用便宜约 3 倍。
 
 ---
 
-## What's *not* in the box
+## 暂未实现
 
-- No user accounts. Per-IP rate limits + global daily $ budget cap stop
-  abuse without forcing signup.
-- No history / saved analyses. Fire and forget.
-- No backtesting. The output is qualitative analysis, not a tradeable signal.
-- No streaming for `quick` after the first ~30 chars on a cache miss
-  (DeepSeek's first-token latency).
+- 无用户账号。每 IP 速率限制 + 全局每日 $ 预算上限,无需注册即可阻止滥用。
+- 无历史记录 / 保存的分析。即用即走。
+- 无回测。输出是定性分析,不是可交易信号。
+- `quick` 在缓存未命中时,前 ~30 个字符之后无流式输出(DeepSeek 的首 token 延迟所致)。
 
 ---
 
-## Work log
+## 工作日志
 
-Reverse-chronological. New entries on top. Each entry: date · what shipped · what blocked.
+倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
-### 2026-06-16 — initial 9-task buildout
+### 2026-06-16 — 初版 9 任务搭建
 
-What shipped (all 9 tasks ✅):
+交付内容(全部 9 个任务 ✅):
 
-1. **Repo scaffolding** — `backend/` (uv + Python 3.12), `frontend/` (Next 14), `.gitignore`, README. Verified `uv sync` resolves the path-dep on `vendor/TradingAgents`.
-2. **Backend skeleton + snapshot route** — FastAPI app, CORS, `/healthz`, `market_data.py` unifying yfinance + akshare, `GET /api/snapshot`. Caught + fixed yfinance NaN tail-row bug (current trading day occasionally null).
-3. **Skill runner + `/api/quick` SSE** — vendored Buffett skill (`SKILL.md` + 8 references = 157k char system prompt). DeepSeek streaming via OpenAI SDK + `base_url`. Caught + fixed sse-starlette double `data:` wrap (yield dict, not pre-formatted string).
-4. **TradingAgents runner + `/api/debate` SSE** — LangGraph `stream_mode="values"` translation layer. Diffs successive state snapshots to emit `agent_start / agent_complete / debate_turn / final / done`. Async-wraps the sync `graph.stream()` via `asyncio.Queue + run_in_executor`. **Discovered**: `llm_provider="openai" + backend_url=deepseek` triggers OpenAI Responses API → 404. Fixed by using TA's built-in `llm_provider="deepseek"`.
-5. **Rate limit + daily budget gate** — replaced slowapi (decorator runs before validation, typoed tickers burn quota) with custom sliding-window limiter called *after* snapshot pre-fetch. Redis backend (atomic INCR + EXPIRE NX) with in-memory fallback for local dev. Daily $ cap enforced before SSE opens.
-6. **Frontend skeleton** — Next 14 App Router, Tailwind 3 (deep-blue theme later), shadcn-ish components, recharts K-line, mode selector (snapshot / quick / debate). Verified static export builds and `NEXT_PUBLIC_API_BASE` bakes into the bundle.
-7. **SSE client + UI streaming** — hand-rolled `lib/sse.ts` (`fetch + ReadableStream`, CRLF-tolerant frame parser) since `EventSource` is GET-only. `quick-result.tsx` token-streams markdown like ChatGPT; `debate-stream.tsx` renders agent timeline with collapsible cards. Hero "Final Decision" card extracts BUY/SELL/HOLD verdict, TL;DR sentence (regex over `Executive Summary` / `执行摘要` / `Reasoning` / `理由`), and key facts (price target, stop loss, time horizon, position sizing) lifted into pills.
-8. **Local end-to-end verification** — three real LLM runs: Quick zh AAPL ($0.005, 29 s), Quick en NVDA ($0.005, 36 s), Debate zh AAPL ($0.10, 273 s, 31 chunks, 0 errors). Total ~$0.11. Verified language switching produces 100% Chinese / 100% English with no cross-contamination.
-9. **Deploy scaffolding** — initially Docker compose, **pivoted to bare systemd + nginx + uv on Ubuntu** (saves ~250 MB RAM, no daemon, simpler `journalctl` debugging). Wrote `deploy/setup-server.sh`, `deploy/install.sh`, `deploy/stock-web-backend.service`, `deploy/nginx.conf`, `DEPLOY.md` with two-stage rollout (IP soft-launch → ICP + HTTPS). Verified backend imports under new vendor path and `npm run build` static export succeeds with API base baked in.
+1. **仓库脚手架** —— `backend/`(uv + Python 3.12)、`frontend/`(Next 14)、`.gitignore`、README。验证 `uv sync` 能正确解析对 `vendor/TradingAgents` 的 path-dep。
+2. **后端骨架 + snapshot 路由** —— FastAPI 应用、CORS、`/healthz`、统一 yfinance + akshare 的 `market_data.py`、`GET /api/snapshot`。发现并修复 yfinance NaN 尾行 bug(当前交易日偶尔为 null)。
+3. **Skill runner + `/api/quick` SSE** —— 内置 Buffett skill(`SKILL.md` + 8 篇参考资料 = 157k 字符的 system prompt)。通过 OpenAI SDK + `base_url` 实现 DeepSeek 流式输出。发现并修复 sse-starlette 双重 `data:` 包装问题(yield dict,而不是预格式化的字符串)。
+4. **TradingAgents runner + `/api/debate` SSE** —— LangGraph `stream_mode="values"` 翻译层。对相邻 state 快照做 diff,发出 `agent_start / agent_complete / debate_turn / final / done`。通过 `asyncio.Queue + run_in_executor` 把同步的 `graph.stream()` 异步化包装。**发现**:`llm_provider="openai" + backend_url=deepseek` 会触发 OpenAI Responses API → 404。修复方式是改用 TA 内置的 `llm_provider="deepseek"`。
+5. **速率限制 + 每日预算闸门** —— 替换掉 slowapi(装饰器在 validation 之前运行,拼错的 ticker 也会消耗配额),改用自定义滑动窗口限流器,在 snapshot 预取*之后*才调用。Redis 后端(原子 INCR + EXPIRE NX),本地开发时回落到内存实现。每日 $ 上限在 SSE 打开之前就强制校验。
+6. **前端骨架** —— Next 14 App Router、Tailwind 3(后续接入深蓝主题)、shadcn 风格组件、recharts K 线、模式选择器(snapshot / quick / debate)。验证静态导出能正常构建,且 `NEXT_PUBLIC_API_BASE` 会被打入 bundle。
+7. **SSE 客户端 + UI 流式渲染** —— 由于 `EventSource` 仅支持 GET,自己手写 `lib/sse.ts`(`fetch + ReadableStream`,容忍 CRLF 的帧解析器)。`quick-result.tsx` 像 ChatGPT 那样按 token 流式渲染 markdown;`debate-stream.tsx` 渲染 agent 时间线,卡片可折叠。顶部 "Final Decision" 卡片提取 BUY/SELL/HOLD 决策、TL;DR 一句话总结(对 `Executive Summary` / `执行摘要` / `Reasoning` / `理由` 做正则匹配),以及关键事实(目标价、止损、时间窗口、仓位规模),以药丸标签形式呈现。
+8. **本地端到端验证** —— 三次真实 LLM 跑通:Quick zh AAPL($0.005,29 秒)、Quick en NVDA($0.005,36 秒)、Debate zh AAPL($0.10,273 秒,31 个 chunk,0 错误)。合计 ~$0.11。验证语言切换能产出 100% 中文 / 100% 英文,无混杂。
+9. **部署脚手架** —— 最初用 Docker compose,**转向 Ubuntu 上裸跑的 systemd + nginx + uv**(节省 ~250 MB 内存,无 daemon,`journalctl` 调试更简单)。写了 `deploy/setup-server.sh`、`deploy/install.sh`、`deploy/stock-web-backend.service`、`deploy/nginx.conf`、`DEPLOY.md`,采用两阶段上线(IP 软启动 → ICP + HTTPS)。验证后端在新的 vendor 路径下可正常 import,`npm run build` 的静态导出在 API base 已烘入的情况下能成功完成。
 
-Other notable choices made today:
+今日其他值得记录的选择:
 
-- **DeepSeek V4** (not V3 — that's a misread of the legacy alias `deepseek-chat` which now maps to V4-Flash; aliases retire 2026-07-24). Default split: V4-Pro for debate deep-think, V4-Flash for quick + TA internal calls.
-- **Deep-blue theme** with subtle radial accent at the top (deeper finance/analytics vibe than the original neutral grey).
-- **EN / 中文 i18n** via flat dict in `lib/i18n.tsx` (~150 keys, no i18next). Persists in localStorage; first visit sniffs `navigator.language`. LLM output language passed through to backend (Quick uses tail directive, Debate uses TradingAgents' built-in `output_language="Chinese"`).
-- **Why not Vercel + Railway** — mainland China connectivity is poor; demo audience is friends without VPNs.
+- **DeepSeek V4**(不是 V3 —— 那是对老别名 `deepseek-chat` 的误读,该别名现在映射到 V4-Flash;别名将在 2026-07-24 退役)。默认分工:V4-Pro 用于 debate 深度思考,V4-Flash 用于 quick + TA 内部调用。
+- **深蓝主题**,顶部带细微的径向高光(比原本中性灰更具金融 / 分析气质)。
+- **EN / 中文 i18n** 通过 `lib/i18n.tsx` 里的扁平字典实现(~150 个 key,不引入 i18next)。状态持久化在 localStorage;首次访问嗅探 `navigator.language`。LLM 输出语言透传到后端(Quick 用尾部 directive,Debate 用 TradingAgents 内置的 `output_language="Chinese"`)。
+- **为什么不用 Vercel + Railway** —— 中国大陆访问质量差;demo 受众是没有 VPN 的朋友。
 
-Blockers / open from today:
+阻塞项 / 今日遗留:
 
-- akshare's eastmoney endpoint fails locally because of an HTTP proxy on this machine — needs verification on a clean Chinese VPS in production.
-- ICP filing not started — domain + 14-21 day filing process is on the user. Stage A (IP-only `:8080`) deploys without it.
-- No automated test suite. Smoke-tested by hand throughout.
-- No live demo URL yet. Will be added once Stage A deploys to a real VPS.
+- akshare 的 eastmoney 接口在本机调用失败,因为这台机器上有 HTTP 代理 —— 需要在干净的中国 VPS 生产环境上验证。
+- ICP 备案尚未启动 —— 域名 + 14-21 天的备案流程在用户侧。Stage A(仅 IP `:8080`)无需备案即可部署。
+- 没有自动化测试套件。全程靠手工烟雾测试。
+- 暂无 live demo URL。一旦 Stage A 部署到真实 VPS 就会补上。
 
 ---
 
-## License
+## 许可证
 
-MIT. TradingAgents has its own license — check before redistributing.
+MIT。TradingAgents 有其自己的许可证 —— 二次分发前请先核对。
