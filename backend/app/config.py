@@ -1,0 +1,57 @@
+"""Configuration loaded from environment variables.
+
+Read once at startup; treat as immutable.
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from functools import lru_cache
+
+from dotenv import load_dotenv
+
+# Load .env from backend/ if present (no-op when running on Railway with real env)
+load_dotenv()
+
+
+def _split_csv(raw: str | None, default: list[str]) -> list[str]:
+    if not raw:
+        return default
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+@dataclass(frozen=True)
+class Settings:
+    deepseek_api_key: str
+    deepseek_base_url: str
+    daily_budget_usd: float
+    rate_limit_quick: str
+    rate_limit_debate: str
+    redis_url: str
+    cors_origins: list[str]
+    deep_think_llm: str
+    quick_think_llm: str
+
+    @property
+    def has_redis(self) -> bool:
+        # Locally we may not run Redis; the budget gate degrades to "always allow"
+        # and slowapi falls back to in-memory storage. See app.services.budget.
+        return bool(self.redis_url) and self.redis_url != "memory"
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings(
+        deepseek_api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+        deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        daily_budget_usd=float(os.getenv("DAILY_BUDGET_USD", "10")),
+        rate_limit_quick=os.getenv("RATE_LIMIT_QUICK", "5/hour"),
+        rate_limit_debate=os.getenv("RATE_LIMIT_DEBATE", "1/hour"),
+        redis_url=os.getenv("REDIS_URL", "memory"),
+        cors_origins=_split_csv(
+            os.getenv("CORS_ORIGINS"),
+            default=["http://localhost:3000"],
+        ),
+        deep_think_llm=os.getenv("DEEP_THINK_LLM", "deepseek-v4-pro"),
+        quick_think_llm=os.getenv("QUICK_THINK_LLM", "deepseek-v4-flash"),
+    )

@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: theme('colors.bg');
+  color: theme('colors.fg');
+  font-family: theme('fontFamily.sans');
+  /* Subtle radial accent up top — adds depth without being theme-y. */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, hsla(210, 100%, 50%, 0.12), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 100% 0%, hsla(220, 100%, 60%, 0.06), transparent 60%);
+  background-attachment: fixed;
+  background-color: theme('colors.bg');
+}
+
+/* Markdown rendered by react-markdown gets these defaults */
+.prose-tight h1 { @apply text-xl font-semibold mt-4 mb-2; }
+.prose-tight h2 { @apply text-lg font-semibold mt-4 mb-2 text-fg/90; }
+.prose-tight h3 { @apply text-base font-semibold mt-3 mb-1 text-fg/80; }
+.prose-tight p  { @apply text-sm leading-6 my-2 text-fg/80; }
+.prose-tight ul { @apply list-disc pl-5 my-2 text-sm; }
+.prose-tight ol { @apply list-decimal pl-5 my-2 text-sm; }
+.prose-tight li { @apply my-1 text-fg/80; }
+.prose-tight code {
+  @apply px-1 py-0.5 rounded bg-surface text-fg/90 font-mono text-xs;
+}
+.prose-tight pre {
+  @apply bg-surface border border-border rounded p-3 overflow-x-auto my-3 text-xs;
+}
+.prose-tight pre code { @apply bg-transparent p-0; }
+.prose-tight table {
+  @apply w-full text-sm my-3 border-collapse;
+}
+.prose-tight th {
+  @apply text-left font-semibold border-b border-border py-1 pr-3 text-fg/90;
+}
+.prose-tight td {
+  @apply border-b border-border/40 py-1 pr-3 text-fg/75;
+}
+.prose-tight strong { @apply text-fg font-semibold; }
+.prose-tight blockquote {
+  @apply border-l-2 border-accent/60 pl-3 my-2 text-fg/70 italic;
+}

@@ -1,0 +1,36 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+
+# node
+node_modules/
+.next/
+out/
+.vercel
+
+# uv (commit uv.lock so reinstalls are reproducible — only the cache is gitignored)
+.uv/
+
+# os/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# project local data
+backend/data/
+*.log
+
+# Vendored TradingAgents — see backend/vendor/README.md.
+# We don't ship the vendored copy in git: cloners pull TradingAgents
+# themselves and run the vendoring command from backend/vendor/README.md.
+backend/vendor/TradingAgents/
+
+# Smoke / probe scratch (these get deleted as we go but belt-and-suspenders)
+_smoke_*.ps1
+_smoke_*.mts
+_probe_*.py
+_probe_*.mts

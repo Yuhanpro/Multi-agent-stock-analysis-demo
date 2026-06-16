@@ -1,0 +1,32 @@
+[project]
+name = "stock-web-backend"
+version = "0.1.0"
+description = "FastAPI backend for stock-web — wraps TradingAgents and buffett skill into a public demo"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sse-starlette>=2.1",
+    "pydantic>=2.9",
+    "openai>=1.55",
+    "yfinance>=0.2.50",
+    "akshare>=1.15",
+    "slowapi>=0.1.9",
+    "redis>=5.2",
+    "python-dotenv>=1.0",
+    # path-dep on the existing TradingAgents repo (see [tool.uv.sources] below)
+    "tradingagents",
+]
+
+[tool.uv.sources]
+# Vendored copy of github.com/.../TradingAgents — see backend/vendor/README.md
+# for sync notes. Originally an editable path-dep on ../../TradingAgents during
+# local dev; vendored at deploy time so the docker image is self-contained.
+tradingagents = { path = "vendor/TradingAgents", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
