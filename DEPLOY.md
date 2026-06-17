@@ -1,111 +1,221 @@
-# Deployment
+# 部署指南
 
-Bare-metal systemd deployment to a single Linux VPS — no Docker required.
+单台 Linux VPS 裸跑部署,**不使用 Docker**。服务组成:
 
-Two-stage rollout:
+- nginx:公网入口,监听 `:18080`,服务前端静态文件并反代 `/api/*`
+- FastAPI backend:systemd 服务,只监听 `127.0.0.1:8000`
+- Redis:本机 loopback,存限流和每日预算计数
+- 前端:Next.js `output: "export"` 静态产物,发布到 `/var/www/stock-web`
+- 运行目录:`/opt/stock-web`
 
-| Stage | Pre-requisite | Result |
+两阶段上线:
+
+| 阶段 | 前置条件 | 结果 |
 |---|---|---|
-| **A. IP-only soft-launch** | A cloud VPS (2c4g) running Ubuntu 22.04 | `http://<your-IP>:8080` accessible to anyone — browser shows "Not Secure" warning |
-| **B. After ICP filing** | Domain registered + ICP filing approved (14-21 days) | `https://your.domain` with Let's Encrypt cert |
+| **A. IP soft-launch** | 国内 VPS(2c4g 推荐),Ubuntu 22.04/24.04 | `http://<你的IP>:18080` 可访问,无 HTTPS |
+| **B. 域名 + HTTPS** | 域名备案通过(14-21 天) | `https://your.domain` 绿锁 |
 
-## Stage A — first-time deploy
+---
 
-1. **Buy a VPS** — 2c4g Ubuntu 22.04 in a Chinese region (Aliyun / Tencent / Volcengine). Open inbound TCP **8080** in the security group. Avoid 80 — most Chinese ISPs block it for unfiled domains.
+## Stage A — IP soft-launch
 
-2. **SSH in and run the bootstrap** (installs Python 3.12, Node 20, Redis, nginx, uv):
+### 1. 买机器
 
-   ```bash
-   ssh user@1.2.3.4
-   sudo apt update && sudo apt install -y git
-   git clone https://github.com/<you>/stock-web.git ~/stock-web
-   cd ~/stock-web
-   sudo bash deploy/setup-server.sh
-   ```
+推荐配置:
 
-   (Alternatively, if you don't want to put the repo on GitHub: `scp -r` from your dev machine instead of `git clone`.)
+- 阿里云 ECS / 轻量应用服务器均可
+- 地域:国内任意区域
+- 系统:Ubuntu 22.04 或 24.04
+- 配置:2c4g / 40GB SSD / 3Mbps+
+- 安全组:开放 inbound TCP **18080**
 
-3. **Configure secrets**:
+未备案前不要依赖 80/443,多数云厂或运营商会拦。
 
-   ```bash
-   cp .env.example .env
-   nano .env   # set DEEPSEEK_API_KEY and PUBLIC_API_BASE=http://1.2.3.4:8080
-   ```
+### 2. 打包并上传代码
 
-4. **Install / build / start** (idempotent — re-run after `git pull`):
+本机 PowerShell:
 
-   ```bash
-   sudo bash deploy/install.sh
-   ```
-
-   This:
-   - `uv sync` for the backend
-   - writes `/etc/stock-web.env` with secrets (mode 0640, root:stockweb)
-   - installs systemd unit + starts `stock-web-backend.service`
-   - `npm run build` for the frontend
-   - publishes `out/` to `/var/www/stock-web`
-   - configures nginx, reloads
-   - `curl /healthz` to confirm
-
-5. **Move home** — open `http://1.2.3.4:8080` in your browser.
-
-## Day-to-day operations
-
-```bash
-# Tail backend logs
-sudo journalctl -u stock-web-backend -f
-
-# Restart backend (after editing /etc/stock-web.env)
-sudo systemctl restart stock-web-backend
-
-# Health
-curl -s http://127.0.0.1:8000/healthz | jq
-
-# Update + redeploy
-cd ~/stock-web
-git pull
-sudo bash deploy/install.sh
-
-# Reset rate-limit / budget counters (just restart redis)
-sudo systemctl restart redis-server
+```powershell
+cd E:\code\projects\stock-web
+powershell -ExecutionPolicy Bypass -File deploy\package.ps1
+scp dist\stock-web-deploy.tar.gz root@<你的IP>:/tmp/stock-web-deploy.tar.gz
 ```
 
-## Stage B — adding HTTPS after ICP
+服务器上解压:
 
-1. Register a domain with the same cloud provider's registrar; submit an ICP filing under your ID. **Make sure the site description says "AI 多 agent 系统技术演示"**, not "投资分析" — the latter triggers a financial-services license demand.
+```bash
+ssh root@<你的IP>
+rm -rf ~/stock-web
+mkdir -p ~/stock-web
+tar -xzf /tmp/stock-web-deploy.tar.gz -C ~/stock-web
+cd ~/stock-web
+```
 
-2. After ICP approval (14-21 days):
-   - Point the domain's A record to your VPS IP.
-   - Open inbound TCP 443 in the security group.
+如果你不用 root,替换成自己的登录用户。
 
-3. **Get a Let's Encrypt cert** with certbot:
+为什么不用 `scp -r E:\code\projects\stock-web`? 因为它会把 `.venv`、`node_modules`、`.next` 一起传上去,浪费几百 MB;`deploy/package.ps1` 会排除这些可再生目录,但保留服务器必须要的 `backend/vendor/TradingAgents`。
 
-   ```bash
-   sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d your.domain
-   ```
+### 3. 服务器一次性初始化
 
-   certbot will auto-edit `deploy/nginx.conf` (well, the version installed at `/etc/nginx/sites-available/stock-web`) and add the SSL block + http→https redirect.
+SSH 到服务器:
 
-4. **Update `.env`**:
+```bash
+ssh root@<你的IP>
+cd ~/stock-web
+sudo bash deploy/setup-server.sh
+```
 
-   ```
-   PUBLIC_API_BASE=https://your.domain
-   ```
+这个脚本会:
 
-5. **Rebuild + redeploy** (the API base is baked into the static bundle):
+- apt 安装 curl / git / rsync / nginx / redis / build-essential
+- 安装 Node 20
+- 安装 uv
+- 通过 uv 给 `stockweb` 系统用户安装 Python 3.12(不依赖 Ubuntu apt 源是否带 Python 3.12)
+- 创建 `/opt/stock-web`
+- 启动 Redis(loopback only)
 
-   ```bash
-   sudo bash deploy/install.sh
-   ```
+### 4. 配置环境变量
 
-## Troubleshooting
+```bash
+cd ~/stock-web
+cp .env.example .env
+nano .env
+```
 
-| Symptom | Likely cause | Fix |
+至少改两项:
+
+```env
+DEEPSEEK_API_KEY=sk-你的真实key
+PUBLIC_API_BASE=http://<你的IP>:18080
+```
+
+可选:
+
+```env
+DAILY_BUDGET_USD=10
+RATE_LIMIT_QUICK=5/hour
+RATE_LIMIT_DEBATE=1/hour
+DEEP_THINK_LLM=deepseek-v4-pro
+QUICK_THINK_LLM=deepseek-v4-flash
+```
+
+### 5. 部署 / 更新
+
+```bash
+sudo bash deploy/install.sh
+```
+
+这个脚本是幂等的,以后每次更新代码都可以重新跑。它会:
+
+1. 把当前仓库同步到 `/opt/stock-web`
+2. 后端 `uv sync --frozen`
+3. 写 `/etc/stock-web.env`(root:stockweb,0640)
+4. 安装并重启 `stock-web-backend.service`
+5. 前端 `npm ci && npm run build`
+6. 把 `frontend/out/` 发布到 `/var/www/stock-web`
+7. 安装 nginx site 并 reload
+8. curl `/healthz` 做 smoke check
+
+### 6. 验收
+
+浏览器打开:
+
+```text
+http://<你的IP>:18080
+```
+
+检查:
+
+- [ ] 首页正常显示
+- [ ] Snapshot 模式 AAPL 能返回 K 线
+- [ ] Buffett Quick 能流式输出
+- [ ] TradingAgents Debate 3-5 分钟后出现最终结论卡
+
+服务器上可运行:
+
+```bash
+curl -s http://127.0.0.1:8000/healthz
+sudo systemctl status stock-web-backend
+sudo journalctl -u stock-web-backend -n 80 --no-pager
+```
+
+---
+
+## 日常运维
+
+```bash
+# 查看 backend 日志
+sudo journalctl -u stock-web-backend -f
+
+# 重启 backend
+sudo systemctl restart stock-web-backend
+
+# 更新代码后重新部署
+# 方式 A:如果服务器是 git clone 的: git pull
+# 方式 B:如果是打包上传的:重新运行 package.ps1 + scp + tar 覆盖 ~/stock-web
+cd ~/stock-web
+sudo bash deploy/install.sh
+
+# 重置 Redis 计数器(限流和每日预算)
+sudo systemctl restart redis-server
+
+# 检查 nginx 配置
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+---
+
+## Stage B — 备案后加 HTTPS
+
+ICP备案通过后:
+
+1. 域名 A 记录指向 VPS IP
+2. 安全组开放 443
+3. 安装 certbot:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your.domain
+```
+
+4. 更新 `.env`:
+
+```env
+PUBLIC_API_BASE=https://your.domain
+```
+
+5. 重新构建前端(因为 `NEXT_PUBLIC_API_BASE` 是 build-time baked):
+
+```bash
+sudo bash deploy/install.sh
+```
+
+6. 验证:
+
+```bash
+curl -I https://your.domain/healthz
+sudo certbot renew --dry-run
+```
+
+---
+
+## 常见问题
+
+| 现象 | 可能原因 | 处理 |
 |---|---|---|
-| `curl 127.0.0.1:8000/healthz` works on the box but the public URL doesn't | Cloud security group / ufw firewall closed | Open 8080 (or 443) inbound in the cloud console |
-| Frontend renders, but pressing "Analyze" says "Failed to fetch" | `PUBLIC_API_BASE` mismatch — value the browser sees doesn't match what the server's CORS allowlist expects | Ensure same string in `.env`, then `sudo bash deploy/install.sh` |
-| SSE stream cuts off at 60s | Some cloud LBs add their own nginx hop with default timeouts | Check security group for an LB; either remove or set timeouts > 600s |
-| `npm ci` runs out of memory on a 1c1g machine during `next build` | Node uses lots of RAM compiling | Either upgrade to 2c4g, or build locally and `scp -r frontend/out/ user@vps:/var/www/stock-web/` |
-| `systemctl status stock-web-backend` shows `failed` | Check `journalctl -u stock-web-backend -n 50`. Most common: `DEEPSEEK_API_KEY` not in `/etc/stock-web.env`, or path-dep `vendor/TradingAgents` missing | Edit `.env`, re-run `install.sh` |
-| Cloud provider sends a "your IP is being accessed but no ICP filing" warning | Common after 7-30 days for unfiled IPs | Either accelerate the ICP filing or move the demo behind something they don't track |
+| `http://<ip>:18080` 打不开 | 安全组没开放 18080 / 服务器防火墙 | 云控制台放行 TCP 18080;如启用 ufw,`sudo ufw allow 18080/tcp` |
+| 首页打开,点 Analyze 失败 | `.env` 里的 `PUBLIC_API_BASE` 和浏览器实际访问地址不一致,CORS 拒绝 | 改 `.env`,重新 `sudo bash deploy/install.sh` |
+| Debate 60 秒断流 | 中间代理/nginx 缓冲或 timeout 太短 | 确认使用 `deploy/nginx.conf`,里面 `proxy_buffering off` 和 `proxy_read_timeout 600s` |
+| `stock-web-backend.service` failed | 看日志 | `sudo journalctl -u stock-web-backend -n 80 --no-pager` |
+| `uv sync --frozen` 失败,提示 `vendor/TradingAgents` 缺失 | GitHub 仓库不包含 vendored TradingAgents,需要本地/服务器补齐 | 按 `backend/vendor/README.md` 把 TradingAgents 拷进 `backend/vendor/TradingAgents` 后再部署 |
+| 前端 build OOM | 机器太小(1c1g) | 换 2c4g,或本地 build 后上传 `frontend/out` |
+| A 股数据失败 | akshare / eastmoney 接口问题 | 见 GitHub issue #2 |
+
+---
+
+## 重要注意
+
+- `DEEPSEEK_API_KEY` 不要提交到 git,只放服务器 `.env` 和 `/etc/stock-web.env`。
+- 未备案阶段只适合小范围演示;正式分享请等 ICP + HTTPS。
+- 首页/README 已声明 research demo / 不构成投资建议,不要改成交易建议类文案。

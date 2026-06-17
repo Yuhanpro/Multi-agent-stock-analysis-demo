@@ -8,11 +8,8 @@ Type=simple
 User=stockweb
 Group=stockweb
 EnvironmentFile=/etc/stock-web.env
-WorkingDirectory=/home/stockweb/stock-web/backend
-# REPO_ROOT is sourced from the env file — but we pin the working dir above
-# so the service still works if someone clones to a different path. Just edit
-# WorkingDirectory and the PATH below to match.
-ExecStart=/usr/local/bin/uv run uvicorn app.main:app \
+WorkingDirectory=/opt/stock-web/backend
+ExecStart=/opt/stock-web/backend/.venv/bin/uvicorn app.main:app \
     --host 127.0.0.1 \
     --port 8000 \
     --workers 1 \
@@ -34,7 +31,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/home/stockweb /tmp
+ReadWritePaths=/opt/stock-web /tmp
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

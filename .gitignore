@@ -24,6 +24,9 @@ Thumbs.db
 backend/data/
 *.log
 
+# deploy artifacts
+dist/
+
 # Vendored TradingAgents — see backend/vendor/README.md.
 # We don't ship the vendored copy in git: cloners pull TradingAgents
 # themselves and run the vendoring command from backend/vendor/README.md.

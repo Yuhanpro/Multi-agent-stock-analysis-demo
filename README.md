@@ -164,6 +164,24 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-06-17 — 迁移到 E 盘、GitHub work items、阿里云部署准备
+
+交付内容:
+
+- **工作区迁移** —— 将 `C:\Users\fuyuh\projects` 迁移到 `E:\code\projects`,原路径改为 junction,旧路径兼容、新路径作为主工作区。`E:\code\claude\skills/plans/memory/plugins/settings` 挂载到对应 `.claude` 目录,便于在 E 盘集中维护。
+- **stock-web-build skill** —— 新增 `E:\code\claude\skills\stock-web-build\SKILL.md`,记录项目架构、DeepSeek V4 模型拆分、TradingAgents stream 坑、SSE/PowerShell/gh CLI/Git SSH 踩坑、README 工作日志规则和部署路线。
+- **GitHub work items** —— 配置 GitHub SSH key 与 gh CLI,为仓库创建 `deployment/testing/data-source/frontend/backend` labels、Stage A / Stage B milestones,并创建 #2-#7 六个 issues 用作 GitHub 版 work item。
+- **README 中文化** —— README 全文改为简体中文,保留关键英文技术名词,并推送到 GitHub。
+- **阿里云轻量服务器探查** —— 识别服务器为 Alibaba Cloud Linux 3,OpenClaw/openclaw-gateway 占用约 943MB 内存;停止 OpenClaw/searxng/chrome 后可用内存从 296Mi 提升到 1.5Gi,释放 8080/13984/13986/13987/13995 端口。
+- **部署脚本加固** —— `deploy/setup-server.sh` 改为同时支持 apt 与 dnf/yum,Python 3.12 改由 uv 安装;`deploy/install.sh` 改为同步到 `/opt/stock-web` 并兼容 RHEL/Alibaba Cloud Linux 的 `/etc/nginx/conf.d` 布局;`deploy/nginx.conf` 改监听 `18080`,避开 OpenClaw 历史端口。
+- **部署打包脚本** —— 新增 `deploy/package.ps1`,生成 `dist/stock-web-deploy.tar.gz`;验证产物约 3.8MB,包含 `backend/vendor/TradingAgents`,排除 `.venv/node_modules/.next/out/.env` 等可再生/敏感目录。
+
+阻塞项 / 遗留:
+
+- 阿里云轻量服务器还未执行正式部署,下一步需要放行 TCP 18080,上传 `dist/stock-web-deploy.tar.gz`,解压后配置 `.env` 并运行 `sudo bash deploy/setup-server.sh && sudo bash deploy/install.sh`。
+- Alibaba Cloud Linux 上的 `uv sync --frozen`、Node 20 安装、nginx reload 还未在真机上跑过,需要部署时现场验证。
+- 该轻量服务器只有 1.8Gi 内存,OpenClaw 停掉后可运行 stock-web,但 Multi-Agent Debate 仍可能比 2c4g 机器慢。
+
 ### 2026-06-16 — 初版 9 任务搭建
 
 交付内容(全部 9 个任务 ✅):
