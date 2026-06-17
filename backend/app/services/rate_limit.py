@@ -8,7 +8,9 @@ validation (snapshot pre-fetch) succeeds — only "real" requests count.
 
 Storage:
   - Redis when settings.has_redis: per-(scope, ip) key with 1-hour TTL,
-    INCR + EXPIRE NX is atomic.
+    INCR + EXPIRE is atomic enough for this fixed-window demo limiter. Avoid
+    EXPIRE NX: Alibaba Cloud Linux ships Redis 6.2 where the NX option can
+    error depending on redis-py command construction.
   - In-memory dict (with lock) otherwise; keyed identically. Single-process only.
 
 Limit string format: "<N>/<period>" where period is one of
@@ -90,7 +92,8 @@ class _RedisBackend:
         rkey = f"rl:{key}:{bucket}"
         pipe = self._r.pipeline()
         pipe.incr(rkey, 1)
-        pipe.expire(rkey, period_sec, nx=True)
+        # No NX option for compatibility with Redis 6.2 on Alibaba Cloud Linux.
+        pipe.expire(rkey, period_sec)
         new_count, _ = pipe.execute()
         if new_count > count:
             return False, 0

@@ -54,10 +54,12 @@ class _RedisBackend:
         return float(v) if v is not None else 0.0
 
     def add_today(self, key: str, delta: float, ttl_sec: int) -> float:
-        # INCRBYFLOAT is atomic; EXPIRE NX only sets TTL the first time.
+        # INCRBYFLOAT is atomic; avoid EXPIRE NX for Redis 6.2 compatibility
+        # on Alibaba Cloud Linux. Refreshing a daily key's TTL to 36h on each
+        # spend is harmless.
         pipe = self._r.pipeline()
         pipe.incrbyfloat(key, delta)
-        pipe.expire(key, ttl_sec, nx=True)
+        pipe.expire(key, ttl_sec)
         new_total, _ = pipe.execute()
         return float(new_total)
 
