@@ -17,6 +17,9 @@ die() { echo "${RED}xx ${END} $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run with sudo"
 
+# Avoid broken local proxy env inherited from the SSH session / OpenClaw.
+unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy NO_PROXY no_proxy
+
 SRC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_ROOT="/opt/stock-web"
 cd "$SRC_ROOT"
@@ -44,13 +47,24 @@ install -m 0640 -o root -g stockweb "$SRC_ROOT/.env" "$APP_ROOT/.env"
 
 # ---------- backend -------------------------------------------------------
 
-log "syncing backend Python deps via uv"
+log "syncing backend Python deps"
 cd "$APP_ROOT/backend"
-runuser -u stockweb -- bash -lc '
-    set -e
-    cd /opt/stock-web/backend
-    /usr/local/bin/uv sync --frozen
-'
+if [[ -x "$APP_ROOT/backend/.venv/bin/uvicorn" ]]; then
+    log "backend .venv already exists — skipping uv sync"
+else
+    if ! timeout 900s runuser -u stockweb -- bash -lc '
+        set -e
+        unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy NO_PROXY no_proxy
+        export UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/
+        export UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+        export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+        cd /opt/stock-web/backend
+        /usr/local/bin/uv sync --frozen
+    '; then
+        log "uv sync failed or timed out; falling back to pip installer"
+        bash "$APP_ROOT/deploy/server-pip-install.sh"
+    fi
+fi
 
 log "installing systemd unit"
 install -m 0644 "$APP_ROOT/deploy/stock-web-backend.service" /etc/systemd/system/stock-web-backend.service
@@ -79,12 +93,18 @@ systemctl restart stock-web-backend
 log "building frontend (next export)"
 cd "$APP_ROOT/frontend"
 NEXT_PUBLIC_API_BASE="$PUBLIC_API_BASE" \
-    bash -lc 'npm ci --no-audit --no-fund && npm run build'
+    bash -lc 'unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy NO_PROXY no_proxy; npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund && npm run build'
 
 log "publishing frontend to /var/www/stock-web"
 mkdir -p /var/www/stock-web
 rsync -a --delete "$APP_ROOT/frontend/out/" /var/www/stock-web/
-chown -R www-data:www-data /var/www/stock-web
+if id www-data >/dev/null 2>&1; then
+    chown -R www-data:www-data /var/www/stock-web
+elif id nginx >/dev/null 2>&1; then
+    chown -R nginx:nginx /var/www/stock-web
+else
+    log "no www-data/nginx user found; leaving /var/www/stock-web owned by root"
+fi
 
 log "installing nginx site"
 if [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]]; then

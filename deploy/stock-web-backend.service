@@ -1,43 +1,32 @@
 [Unit]
 Description=stock-web FastAPI backend
-After=network.target redis-server.service
-Requires=redis-server.service
+After=network.target redis.service redis-server.service
+Wants=redis.service redis-server.service
 
 [Service]
 Type=simple
 User=stockweb
 Group=stockweb
 EnvironmentFile=/etc/stock-web.env
+# Explicitly clear broken proxy env inherited from /etc/profile.d/proxy.sh on
+# the Aliyun light server. yfinance/curl_cffi otherwise tunnels through
+# 127.0.0.1:7890 and receives HTTP 503.
+Environment=HTTP_PROXY=
+Environment=HTTPS_PROXY=
+Environment=http_proxy=
+Environment=https_proxy=
+Environment=ALL_PROXY=
+Environment=all_proxy=
+Environment=NO_PROXY=*
+Environment=no_proxy=*
 WorkingDirectory=/opt/stock-web/backend
-ExecStart=/opt/stock-web/backend/.venv/bin/uvicorn app.main:app \
-    --host 127.0.0.1 \
-    --port 8000 \
-    --workers 1 \
-    --log-level info \
-    --no-access-log
+ExecStart=/bin/bash -lc 'exec /opt/stock-web/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --log-level info --no-access-log'
 
 # Crash handling
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=3
-
-# Resource caps — tune for the server. 2c4g default:
 LimitNOFILE=8192
 MemoryMax=2G
-
-# Hardening
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/stock-web /tmp
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-RestrictRealtime=true
-RestrictNamespaces=true
-LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target

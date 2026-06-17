@@ -108,7 +108,7 @@ sudo bash deploy/install.sh
 这个脚本是幂等的,以后每次更新代码都可以重新跑。它会:
 
 1. 把当前仓库同步到 `/opt/stock-web`
-2. 后端 `uv sync --frozen`
+2. 后端优先 `uv sync --frozen`;如果在 PyPI/Fastly 下载阶段失败或 15 分钟超时,自动 fallback 到 `deploy/server-pip-install.sh`(pip + 阿里云 PyPI 镜像)
 3. 写 `/etc/stock-web.env`(root:stockweb,0640)
 4. 安装并重启 `stock-web-backend.service`
 5. 前端 `npm ci && npm run build`

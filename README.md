@@ -178,9 +178,9 @@ stock-web/
 
 阻塞项 / 遗留:
 
-- 阿里云轻量服务器还未执行正式部署,下一步需要放行 TCP 18080,上传 `dist/stock-web-deploy.tar.gz`,解压后配置 `.env` 并运行 `sudo bash deploy/setup-server.sh && sudo bash deploy/install.sh`。
-- Alibaba Cloud Linux 上的 `uv sync --frozen`、Node 20 安装、nginx reload 还未在真机上跑过,需要部署时现场验证。
-- 该轻量服务器只有 1.8Gi 内存,OpenClaw 停掉后可运行 stock-web,但 Multi-Agent Debate 仍可能比 2c4g 机器慢。
+- Stage A 已部署到 `http://47.93.21.132:18080`:页面、`/healthz`、AAPL 美股 snapshot、600519 A 股 snapshot 均已验证通过。
+- Alibaba Cloud Linux 上 `uv sync --frozen` 会在 PyPI/Fastly 下载阶段卡住,已增加 `deploy/server-pip-install.sh` fallback:使用 Python 3.12 venv + pip + 阿里云 PyPI 镜像安装依赖。
+- 该轻量服务器只有 1.8Gi 内存,OpenClaw 停掉后可运行 stock-web,但 Multi-Agent Debate 仍可能比 2c4g 机器慢;尚未在公网跑完整 debate。
 
 ### 2026-06-16 — 初版 9 任务搭建
 

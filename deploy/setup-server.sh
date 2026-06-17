@@ -21,6 +21,12 @@ die()  { echo "${RED}xx ${END} $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run with sudo"
 
+# This Aliyun box previously had broken proxy env vars pointing at
+# 127.0.0.1:7890 / socks5h://127.0.0.1:1080. They caused dnf / curl / uv to
+# fail with HTTP 503 tunnel errors. Direct outbound works, so clear all proxy
+# env vars for the deployment scripts.
+unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy NO_PROXY no_proxy
+
 install_packages_apt() {
     log "using apt package manager"
     apt-get update -qq
@@ -58,17 +64,32 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 # uv — fast Python package manager. Installed system-wide for convenience.
-if ! command -v uv >/dev/null 2>&1; then
+# Alibaba Cloud Linux / mainland networks can make the official installer slow;
+# also handle partially-completed installs (e.g. uv exists in /home/admin/.local/bin
+# but was not copied to /usr/local/bin before the SSH session was interrupted).
+if ! command -v uv >/dev/null 2>&1 && [[ ! -x /usr/local/bin/uv ]]; then
     log "installing uv"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    cp -f "$HOME/.local/bin/uv" /usr/local/bin/uv
+    if [[ -x /home/admin/.local/bin/uv ]]; then
+        cp -f /home/admin/.local/bin/uv /usr/local/bin/uv
+    elif [[ -x "$HOME/.local/bin/uv" ]]; then
+        cp -f "$HOME/.local/bin/uv" /usr/local/bin/uv
+    else
+        timeout 180s bash -lc 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+        if [[ -x "$HOME/.local/bin/uv" ]]; then
+            cp -f "$HOME/.local/bin/uv" /usr/local/bin/uv
+        else
+            die "uv installer finished but uv binary was not found"
+        fi
+    fi
 fi
+chmod +x /usr/local/bin/uv
+/usr/local/bin/uv --version
 
 log "creating service user"
 id -u stockweb >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin stockweb
 
 log "installing Python 3.12 for stockweb via uv"
-runuser -u stockweb -- /usr/local/bin/uv python install 3.12
+runuser -u stockweb -- bash -lc 'unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy NO_PROXY no_proxy; cd ~ && /usr/local/bin/uv python install 3.12'
 
 log "enabling redis (loopback only)"
 REDIS_SERVICE="redis"

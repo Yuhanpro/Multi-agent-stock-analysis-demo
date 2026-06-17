@@ -54,6 +54,21 @@ class Snapshot(BaseModel):
 
 
 def _us_snapshot(ticker: str) -> Snapshot:
+    """US snapshot with yfinance first, akshare fallback.
+
+    Yahoo Finance often rate-limits mainland/cloud IP ranges. On our Aliyun
+    light server, yfinance returns HTTP 429, while akshare's `stock_us_daily`
+    still serves AAPL daily bars. The fallback keeps Snapshot/Quick usable even
+    when fundamentals are sparse.
+    """
+    try:
+        return _us_snapshot_yfinance(ticker)
+    except Exception as e:
+        log.warning("yfinance US snapshot failed for %s; falling back to akshare: %s", ticker, e)
+        return _us_snapshot_akshare(ticker)
+
+
+def _us_snapshot_yfinance(ticker: str) -> Snapshot:
     import yfinance as yf
 
     t = yf.Ticker(ticker)
@@ -111,6 +126,51 @@ def _us_snapshot(ticker: str) -> Snapshot:
     )
 
 
+def _us_snapshot_akshare(ticker: str) -> Snapshot:
+    import akshare as ak
+
+    symbol = ticker.upper()
+    hist = ak.stock_us_daily(symbol=symbol, adjust="")
+    if hist is None or hist.empty:
+        raise ValueError(f"akshare returned no US history for {symbol}")
+
+    # ak.stock_us_daily columns are English: date/open/high/low/close/volume.
+    hist = hist.tail(90)
+    ohlcv = [
+        OHLCV(
+            date=str(row["date"])[:10],
+            open=float(row["open"]),
+            high=float(row["high"]),
+            low=float(row["low"]),
+            close=float(row["close"]),
+            volume=float(row["volume"]),
+        )
+        for _, row in hist.iterrows()
+        if row["close"] == row["close"]
+    ]
+    if not ohlcv:
+        raise ValueError(f"akshare returned only NaN US rows for {symbol}")
+
+    last_close = ohlcv[-1].close
+    prev_close = ohlcv[-2].close if len(ohlcv) > 1 else last_close
+    change_pct = (last_close - prev_close) / prev_close if prev_close else None
+
+    fundamentals = Fundamentals(
+        name=symbol,
+        currency="USD",
+    )
+
+    return Snapshot(
+        ticker=symbol,
+        market="US",
+        price=last_close,
+        change_pct=change_pct,
+        ohlcv=ohlcv,
+        fundamentals=fundamentals,
+        source="akshare-us-daily",
+    )
+
+
 # ---------- CN (akshare) ----------------------------------------------------
 
 
@@ -120,31 +180,50 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     code = ticker.zfill(6)  # 600519, 000001
     end = datetime.utcnow().date()
     start = end - timedelta(days=120)
-    hist = ak.stock_zh_a_hist(
-        symbol=code,
-        period="daily",
-        start_date=start.strftime("%Y%m%d"),
-        end_date=end.strftime("%Y%m%d"),
-        adjust="",
-    )
+
+    source = "akshare"
+    try:
+        hist = ak.stock_zh_a_hist(
+            symbol=code,
+            period="daily",
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+            adjust="",
+        )
+    except Exception as e:
+        log.warning("akshare stock_zh_a_hist failed for %s; trying stock_zh_a_daily: %s", code, e)
+        hist = None
+
+    if hist is None or hist.empty:
+        # Fallback: stock_zh_a_daily uses English columns and has been more
+        # stable on the Aliyun light server. It expects sh/sz prefix.
+        prefix = "sh" if code.startswith("6") else "sz"
+        hist = ak.stock_zh_a_daily(
+            symbol=f"{prefix}{code}",
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+            adjust="",
+        )
+        source = "akshare-daily"
     if hist is None or hist.empty:
         raise ValueError(f"akshare returned no history for {code}")
 
-    # Column names in akshare are Chinese; map by position-resilient lookup.
+    # Column names differ by akshare endpoint:
+    # - stock_zh_a_hist:  日期 开盘 收盘 最高 最低 成交量
+    # - stock_zh_a_daily: date open high low close volume
     cols = {c: c for c in hist.columns}
-    # Common columns: 日期 开盘 收盘 最高 最低 成交量
     def col(*names: str) -> str:
         for n in names:
             if n in cols:
                 return n
         raise KeyError(f"akshare missing one of {names}; got {list(cols)}")
 
-    c_date = col("日期")
-    c_open = col("开盘")
-    c_close = col("收盘")
-    c_high = col("最高")
-    c_low = col("最低")
-    c_vol = col("成交量")
+    c_date = col("日期", "date")
+    c_open = col("开盘", "open")
+    c_close = col("收盘", "close")
+    c_high = col("最高", "high")
+    c_low = col("最低", "low")
+    c_vol = col("成交量", "volume")
 
     ohlcv = [
         OHLCV(
@@ -197,7 +276,7 @@ def _cn_snapshot(ticker: str) -> Snapshot:
         change_pct=change_pct,
         ohlcv=ohlcv,
         fundamentals=fundamentals,
-        source="akshare",
+        source=source,
     )
 
 
