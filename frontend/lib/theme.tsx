@@ -18,15 +18,17 @@ export interface ThemeConfig {
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
-  bg: "218 50% 6%",
-  surface: "218 45% 10%",
-  border: "218 35% 20%",
-  muted: "218 15% 65%",
-  fg: "210 30% 98%",
-  accent: "210 100% 62%",
-  bull: "142 71% 50%",
-  bear: "0 75% 60%",
-  radius: "12px",
+  // Graphite + steel-blue. Lower saturation, more editorial/terminal research
+  // product than saturated blue SaaS dashboard.
+  bg: "222 28% 5%",
+  surface: "222 22% 9%",
+  border: "220 15% 22%",
+  muted: "218 10% 66%",
+  fg: "210 18% 96%",
+  accent: "202 84% 58%",
+  bull: "148 58% 45%",
+  bear: "2 62% 58%",
+  radius: "10px",
   density: "normal",
 };
 

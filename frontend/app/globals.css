@@ -3,15 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --theme-bg: 218 50% 6%;
-  --theme-surface: 218 45% 10%;
-  --theme-border: 218 35% 20%;
-  --theme-muted: 218 15% 65%;
-  --theme-fg: 210 30% 98%;
-  --theme-accent: 210 100% 62%;
-  --theme-bull: 142 71% 50%;
-  --theme-bear: 0 75% 60%;
-  --theme-radius: 12px;
+  --theme-bg: 222 28% 5%;
+  --theme-surface: 222 22% 9%;
+  --theme-border: 220 15% 22%;
+  --theme-muted: 218 10% 66%;
+  --theme-fg: 210 18% 96%;
+  --theme-accent: 202 84% 58%;
+  --theme-bull: 148 58% 45%;
+  --theme-bear: 2 62% 58%;
+  --theme-radius: 10px;
   --theme-density: 1;
 }
 
@@ -19,10 +19,10 @@ html, body {
   background: hsl(var(--theme-bg));
   color: hsl(var(--theme-fg));
   font-family: theme('fontFamily.sans');
-  /* Subtle radial accent up top — adds depth without being theme-y. */
+  /* Subtle graphite/steel ambient light. No neon glow, no AI-purple mesh. */
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% -10%, hsla(210, 100%, 50%, 0.12), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 100% 0%, hsla(220, 100%, 60%, 0.06), transparent 60%);
+    radial-gradient(ellipse 75% 52% at 50% -12%, hsla(202, 70%, 45%, 0.095), transparent 62%),
+    radial-gradient(ellipse 44% 34% at 100% 0%, hsla(215, 32%, 45%, 0.055), transparent 58%);
   background-attachment: fixed;
   background-color: hsl(var(--theme-bg));
 }
