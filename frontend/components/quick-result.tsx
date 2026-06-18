@@ -110,9 +110,16 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
             )}
           </div>
         ) : (
-          <div className="text-muted text-sm flex items-center gap-2">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {t("quick.waiting")}
+          <div className="space-y-3">
+            <div className="text-muted text-sm flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t("quick.waiting")}
+            </div>
+            <div className="space-y-2 opacity-60">
+              <div className="h-3 w-11/12 rounded bg-border animate-pulse" />
+              <div className="h-3 w-9/12 rounded bg-border animate-pulse [animation-delay:120ms]" />
+              <div className="h-3 w-10/12 rounded bg-border animate-pulse [animation-delay:240ms]" />
+            </div>
           </div>
         )}
       </div>

@@ -174,6 +174,23 @@ export function DebateStream({ ticker, market, runId, language }: Props) {
         </div>
       )}
 
+      {inflight && agents.length === 0 && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {["Analyst", "Bull/Bear", "Risk"].map((label, i) => (
+            <div key={label} className="bg-surface border border-border rounded-lg p-4 space-y-3 opacity-75">
+              <div className="flex items-center gap-2 text-xs text-muted font-mono uppercase tracking-wide">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                {label}
+              </div>
+              <div className="space-y-2">
+                <div className="h-2.5 rounded bg-border animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
+                <div className="h-2.5 w-10/12 rounded bg-border animate-pulse" style={{ animationDelay: `${i * 160}ms` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Analyst cards (3 in a row on wide screens) */}
       {agents.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, Sparkles, Users, BarChart2, Network } from "lucide-react";
 import { StockInput } from "@/components/stock-input";
 import { SnapshotCard } from "@/components/snapshot-card";
@@ -21,20 +21,34 @@ interface Run {
   nonce: number;
 }
 
-const MODE_DEFS: { id: Mode; icon: JSX.Element; labelKey: string; hintKey: string }[] = [
-  { id: "snapshot", icon: <BarChart2 className="h-4 w-4" />, labelKey: "mode.snapshot.label", hintKey: "mode.snapshot.hint" },
-  { id: "quick",    icon: <Sparkles className="h-4 w-4" />,  labelKey: "mode.quick.label",    hintKey: "mode.quick.hint" },
-  { id: "serenity", icon: <Network className="h-4 w-4" />,   labelKey: "mode.serenity.label", hintKey: "mode.serenity.hint" },
-  { id: "debate",   icon: <Users className="h-4 w-4" />,     labelKey: "mode.debate.label",   hintKey: "mode.debate.hint" },
+const MODE_DEFS: { id: Mode; icon: JSX.Element; labelKey: string; hintKey: string; metaKey: string }[] = [
+  { id: "snapshot", icon: <BarChart2 className="h-4 w-4" />, labelKey: "mode.snapshot.label", hintKey: "mode.snapshot.hint", metaKey: "mode.snapshot.meta" },
+  { id: "quick",    icon: <Sparkles className="h-4 w-4" />,  labelKey: "mode.quick.label",    hintKey: "mode.quick.hint",    metaKey: "mode.quick.meta" },
+  { id: "serenity", icon: <Network className="h-4 w-4" />,   labelKey: "mode.serenity.label", hintKey: "mode.serenity.hint", metaKey: "mode.serenity.meta" },
+  { id: "debate",   icon: <Users className="h-4 w-4" />,     labelKey: "mode.debate.label",   hintKey: "mode.debate.hint",   metaKey: "mode.debate.meta" },
 ];
 
 export default function Page() {
   const { t, lang } = useT();
-  const [mode, setMode] = useState<Mode>("snapshot");
+  const [mode, setModeState] = useState<Mode>("snapshot");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [run, setRun] = useState<Run | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("stock-web:mode") as Mode | null;
+      if (saved && ["snapshot", "quick", "serenity", "debate"].includes(saved)) {
+        setModeState(saved);
+      }
+    } catch {}
+  }, []);
+
+  function setMode(next: Mode) {
+    setModeState(next);
+    try { window.localStorage.setItem("stock-web:mode", next); } catch {}
+  }
 
   async function handleSubmit(ticker: string, market: Market) {
     setSnapshotLoading(true);
@@ -87,9 +101,17 @@ export default function Page() {
             <span className={cn("mt-0.5", mode === m.id ? "text-accent" : "text-muted")}>
               {m.icon}
             </span>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold">{t(m.labelKey as any)}</div>
-              <div className="text-xs text-muted/80 mt-0.5">{t(m.hintKey as any)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold">{t(m.labelKey as any)}</div>
+                <span className={cn(
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-mono",
+                  mode === m.id ? "border-accent/40 text-accent bg-accent/10" : "border-border text-muted/70"
+                )}>
+                  {t(m.metaKey as any)}
+                </span>
+              </div>
+              <div className="text-xs text-muted/80 mt-1">{t(m.hintKey as any)}</div>
             </div>
           </button>
         ))}
@@ -127,8 +149,21 @@ export default function Page() {
       )}
 
       {!snapshot && !snapshotError && !snapshotLoading && (
-        <div className="text-muted text-sm border border-dashed border-border rounded-xl p-8 text-center">
-          {t("empty.hint")}
+        <div className="border border-dashed border-border rounded-xl p-6 sm:p-8 bg-surface/40">
+          <div className="max-w-xl mx-auto text-center space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-mono text-accent">
+              <Sparkles className="h-3.5 w-3.5" />
+              ready
+            </div>
+            <div className="text-sm text-fg/85">{t("empty.hint")}</div>
+            <div className="text-xs text-muted">{t("empty.examples")}</div>
+            <div className="text-xs text-muted/70">{t("empty.tip")}</div>
+            <div className="grid grid-cols-3 gap-2 pt-4 opacity-60">
+              <div className="h-2 rounded bg-border animate-pulse" />
+              <div className="h-2 rounded bg-border animate-pulse [animation-delay:120ms]" />
+              <div className="h-2 rounded bg-border animate-pulse [animation-delay:240ms]" />
+            </div>
+          </div>
         </div>
       )}
 
