@@ -1,0 +1,166 @@
+"use client";
+
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+
+export type Density = "compact" | "normal" | "spacious";
+
+export interface ThemeConfig {
+  bg: string;
+  surface: string;
+  border: string;
+  muted: string;
+  fg: string;
+  accent: string;
+  bull: string;
+  bear: string;
+  radius: string;
+  density: Density;
+}
+
+export const DEFAULT_THEME: ThemeConfig = {
+  bg: "218 50% 6%",
+  surface: "218 45% 10%",
+  border: "218 35% 20%",
+  muted: "218 15% 65%",
+  fg: "210 30% 98%",
+  accent: "210 100% 62%",
+  bull: "142 71% 50%",
+  bear: "0 75% 60%",
+  radius: "12px",
+  density: "normal",
+};
+
+const STORAGE_KEY = "stock-web:theme";
+
+const CSS_VAR_MAP: Record<keyof ThemeConfig, string | null> = {
+  bg: "--theme-bg",
+  surface: "--theme-surface",
+  border: "--theme-border",
+  muted: "--theme-muted",
+  fg: "--theme-fg",
+  accent: "--theme-accent",
+  bull: "--theme-bull",
+  bear: "--theme-bear",
+  radius: "--theme-radius",
+  density: "--theme-density",
+};
+
+interface ThemeCtx {
+  theme: ThemeConfig;
+  setTheme: (next: ThemeConfig) => void;
+  patchTheme: (patch: Partial<ThemeConfig>) => void;
+  resetTheme: () => void;
+  copyTheme: () => Promise<void>;
+}
+
+const Ctx = createContext<ThemeCtx | null>(null);
+
+function normalize(raw: unknown): ThemeConfig {
+  if (!raw || typeof raw !== "object") return DEFAULT_THEME;
+  const o = raw as Partial<ThemeConfig>;
+  return {
+    ...DEFAULT_THEME,
+    ...o,
+    density: o.density === "compact" || o.density === "spacious" ? o.density : "normal",
+  };
+}
+
+function applyTheme(t: ThemeConfig) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  for (const [key, varName] of Object.entries(CSS_VAR_MAP) as Array<[keyof ThemeConfig, string | null]>) {
+    if (!varName) continue;
+    const value = key === "density" ? densityScale(t.density) : t[key];
+    root.style.setProperty(varName, String(value));
+  }
+}
+
+function densityScale(d: Density) {
+  if (d === "compact") return "0.88";
+  if (d === "spacious") return "1.12";
+  return "1";
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<ThemeConfig>(DEFAULT_THEME);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : DEFAULT_THEME;
+      const next = normalize(parsed);
+      setThemeState(next);
+      applyTheme(next);
+    } catch {
+      applyTheme(DEFAULT_THEME);
+    }
+  }, []);
+
+  function setTheme(next: ThemeConfig) {
+    const normalized = normalize(next);
+    setThemeState(normalized);
+    applyTheme(normalized);
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized, null, 2)); } catch {}
+  }
+
+  function patchTheme(patch: Partial<ThemeConfig>) {
+    setTheme({ ...theme, ...patch });
+  }
+
+  function resetTheme() {
+    setTheme(DEFAULT_THEME);
+  }
+
+  async function copyTheme() {
+    const text = JSON.stringify(theme, null, 2);
+    await navigator.clipboard.writeText(text);
+  }
+
+  const value = useMemo(() => ({ theme, setTheme, patchTheme, resetTheme, copyTheme }), [theme]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useThemeEditor() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useThemeEditor must be inside ThemeProvider");
+  return ctx;
+}
+
+export function hslToHex(hsl: string): string {
+  const [hRaw, sRaw, lRaw] = hsl.split(/\s+/);
+  const h = Number(hRaw);
+  const s = Number(sRaw?.replace("%", "")) / 100;
+  const l = Number(lRaw?.replace("%", "")) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (0 <= h && h < 60) [r, g, b] = [c, x, 0];
+  else if (60 <= h && h < 120) [r, g, b] = [x, c, 0];
+  else if (120 <= h && h < 180) [r, g, b] = [0, c, x];
+  else if (180 <= h && h < 240) [r, g, b] = [0, x, c];
+  else if (240 <= h && h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return "#" + [r, g, b]
+    .map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export function hexToHsl(hex: string): string {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  if (h < 0) h += 360;
+  return `${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}

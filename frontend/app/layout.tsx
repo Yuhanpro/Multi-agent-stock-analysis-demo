@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { I18nProvider } from "@/lib/i18n";
+import { ThemeProvider } from "@/lib/theme";
+import { ThemeEditor } from "@/components/theme-editor";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +18,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen antialiased">
-        <I18nProvider>{children}</I18nProvider>
+        <ThemeProvider>
+          <I18nProvider>
+            {children}
+            <ThemeEditor />
+          </I18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

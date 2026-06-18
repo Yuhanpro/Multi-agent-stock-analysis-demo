@@ -177,6 +177,7 @@ stock-web/
 - **部署脚本加固** —— `deploy/setup-server.sh` 改为同时支持 apt 与 dnf/yum,Python 3.12 改由 uv 安装;`deploy/install.sh` 改为同步到 `/opt/stock-web` 并兼容 RHEL/Alibaba Cloud Linux 的 `/etc/nginx/conf.d` 布局;`deploy/nginx.conf` 改监听 `18080`,避开 OpenClaw 历史端口。
 - **部署打包脚本** —— 新增 `deploy/package.ps1`,生成 `dist/stock-web-deploy.tar.gz`;验证产物约 3.8MB,包含 `backend/vendor/TradingAgents`,排除 `.venv/node_modules/.next/out/.env` 等可再生/敏感目录。
 - **Stage A 公网验证** —— `http://47.93.21.132:18080` 已上线。验证页面、`/healthz`、AAPL snapshot、600519 snapshot、AAPL 中文 Quick SSE、AAPL 中文 TradingAgents Debate、NVDA 中文 Serenity 产业链扫描均通过。修复 Redis 6.2 不兼容 `EXPIRE ... NX` 导致的 HTTP 500;修复 OpenClaw 残留 SOCKS 代理环境变量导致的 `socksio` / HTTPX 报错。Quick 实测 45 秒,`token=1997`,`done=1`,成本 `$0.002889`;Debate 实测 375.7 秒,`chunks=37`,`agent_complete=3`,`debate_turn=7`,`final=1`,`error=0`,成本估算 `$0.25`,最终建议 `SELL / 低配`;Serenity 实测 49.9 秒,`token=2396`,`done=1`,成本 `$0.003283`。
+- **本地主题编辑器** —— 新增 `ThemeProvider` + `ThemeEditor`:右下角小按钮,支持实时调整背景/卡片/边框/文字/主色/涨跌色/圆角/密度,配置保存在当前浏览器 `localStorage['stock-web:theme']`,可 Reset 和 Copy JSON。Tailwind 颜色改为 CSS variables,后续可将用户调好的 JSON 固化为默认主题。已部署到公网。
 
 阻塞项 / 遗留:
 
