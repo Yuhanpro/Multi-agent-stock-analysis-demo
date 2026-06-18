@@ -131,7 +131,7 @@ fi
 
 log "${GRN}deploy complete${END}"
 log "  backend:  http://127.0.0.1:8000  (loopback only)"
-log "  frontend: served by nginx on :8080"
+log "  frontend: served by nginx on :18080"
 log "  public:   ${PUBLIC_API_BASE}"
 log "  status:   systemctl status stock-web-backend"
 log "  logs:     journalctl -u stock-web-backend -f"

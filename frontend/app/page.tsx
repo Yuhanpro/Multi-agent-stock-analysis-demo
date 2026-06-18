@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Sparkles, Users, BarChart2 } from "lucide-react";
+import { Activity, Sparkles, Users, BarChart2, Network } from "lucide-react";
 import { StockInput } from "@/components/stock-input";
 import { SnapshotCard } from "@/components/snapshot-card";
 import { QuickResult } from "@/components/quick-result";
@@ -11,7 +11,7 @@ import { fetchSnapshot, type Market, type Snapshot } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 
-type Mode = "snapshot" | "quick" | "debate";
+type Mode = "snapshot" | "quick" | "serenity" | "debate";
 
 interface Run {
   ticker: string;
@@ -24,6 +24,7 @@ interface Run {
 const MODE_DEFS: { id: Mode; icon: JSX.Element; labelKey: string; hintKey: string }[] = [
   { id: "snapshot", icon: <BarChart2 className="h-4 w-4" />, labelKey: "mode.snapshot.label", hintKey: "mode.snapshot.hint" },
   { id: "quick",    icon: <Sparkles className="h-4 w-4" />,  labelKey: "mode.quick.label",    hintKey: "mode.quick.hint" },
+  { id: "serenity", icon: <Network className="h-4 w-4" />,   labelKey: "mode.serenity.label", hintKey: "mode.serenity.hint" },
   { id: "debate",   icon: <Users className="h-4 w-4" />,     labelKey: "mode.debate.label",   hintKey: "mode.debate.hint" },
 ];
 
@@ -71,7 +72,7 @@ export default function Page() {
         <p className="text-sm text-muted max-w-2xl">{t("hero.lead")}</p>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         {MODE_DEFS.map((m) => (
           <button
             key={m.id}
@@ -104,13 +105,14 @@ export default function Page() {
 
       {snapshot && <SnapshotCard snapshot={snapshot} />}
 
-      {run && run.mode === "quick" && (
+      {run && (run.mode === "quick" || run.mode === "serenity") && (
         <QuickResult
           key={run.nonce}
           ticker={run.ticker}
           market={run.market}
           runId={run.nonce}
           language={lang}
+          skill={run.mode === "serenity" ? "serenity" : "buffett"}
         />
       )}
 

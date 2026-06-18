@@ -54,39 +54,56 @@ def _strip_frontmatter(md: str) -> str:
     return _FRONTMATTER_RE.sub("", md, count=1).lstrip()
 
 
-def _load_buffett() -> Skill:
-    base = PROMPTS_DIR / "buffett"
+def _load_prompt_skill(name: str, description: str) -> Skill:
+    base = PROMPTS_DIR / name
     skill_md = _strip_frontmatter((base / "SKILL.md").read_text(encoding="utf-8"))
 
-    refs = []
-    refs_dir = base / "references"
-    for path in sorted(refs_dir.glob("*.md")):
-        body = _strip_frontmatter(path.read_text(encoding="utf-8"))
-        refs.append(f"\n\n---\n\n# Reference: {path.name}\n\n{body}")
-    refs_blob = "".join(refs)
+    chunks = []
+    for subdir, label in (("references", "Reference"), ("assets", "Asset")):
+        d = base / subdir
+        if not d.exists():
+            continue
+        for path in sorted(d.glob("*")):
+            if not path.is_file():
+                continue
+            body = _strip_frontmatter(path.read_text(encoding="utf-8"))
+            chunks.append(f"\n\n---\n\n# {label}: {path.name}\n\n{body}")
+    extra_blob = "".join(chunks)
 
-    # Adapter notes: replace the "use the Read tool" instruction with a
-    # statement that references are already loaded.
+    # Adapter notes: replace Claude Code-only tool instructions with API-mode behavior.
     adapter = (
         "# API Mode Adapter\n\n"
         "You are running over the DeepSeek API (OpenAI-compatible), not "
-        "Claude Code. There is **no Read/Bash/Web tool** available — do not "
-        "attempt to call any tool. Every reference file mentioned in the "
-        "skill below is already inlined further down in this same system "
-        "prompt; treat them as already read. Decide which references apply "
-        "to the user's question and reason from them directly.\n\n"
-        "Output the full *Standard Output Format* sections in the user's "
-        "language. Use **Markdown** for headings, tables, bullets — the "
-        "frontend renders Markdown. Be concrete: cite the actual figures from "
-        "the snapshot block in the user message rather than placeholders.\n\n"
+        "Claude Code. There is **no Read/Bash/WebSearch/Grep/Python tool** "
+        "available — do not attempt to call any tool or ask the user to run "
+        "scripts. Every reference/asset file mentioned in the skill below is "
+        "already inlined further down in this same system prompt; treat them "
+        "as already read. Decide which references apply to the user's question "
+        "and reason from them directly.\n\n"
+        "You may use the live snapshot block in the user message as seed data, "
+        "but do not hallucinate missing numbers. If the task requires data not "
+        "present in the snapshot, state the needed evidence and mark the claim "
+        "as a hypothesis.\n\n"
+        "Output in the user's selected language. Use **Markdown** for headings, "
+        "tables, bullets — the frontend renders Markdown.\n\n"
         "---\n\n"
     )
 
-    system = adapter + skill_md + refs_blob
-    return Skill(
-        name="buffett",
-        system_prompt=system,
-        description="Warren Buffett value-investing analysis (full deep-dive path).",
+    system = adapter + skill_md + extra_blob
+    return Skill(name=name, system_prompt=system, description=description)
+
+
+def _load_buffett() -> Skill:
+    return _load_prompt_skill(
+        "buffett",
+        "Warren Buffett value-investing analysis (full deep-dive path).",
+    )
+
+
+def _load_serenity() -> Skill:
+    return _load_prompt_skill(
+        "serenity",
+        "Serenity supply-chain bottleneck and industry-chain research.",
     )
 
 
@@ -96,7 +113,7 @@ _SKILLS: dict[str, Skill] | None = None
 def get_skill(name: str) -> Skill:
     global _SKILLS
     if _SKILLS is None:
-        _SKILLS = {"buffett": _load_buffett()}
+        _SKILLS = {"buffett": _load_buffett(), "serenity": _load_serenity()}
         for s in _SKILLS.values():
             log.info("loaded skill %r system prompt: %d chars", s.name, len(s.system_prompt))
     if name not in _SKILLS:
@@ -177,12 +194,22 @@ async def stream_quick(
     if user_question:
         user_msg_parts.append(f"\n## User question\n\n{user_question.strip()}\n")
     else:
-        user_msg_parts.append(
-            f"\n## Task\n\nApply the buffett deep-analysis path to "
-            f"{snapshot.fundamentals.name or snapshot.ticker} ({snapshot.ticker}). "
-            "Produce the full Standard Output Format. Use the snapshot data "
-            "above; do not hallucinate numbers you don't have.\n"
-        )
+        if skill.name == "serenity":
+            user_msg_parts.append(
+                f"\n## Task\n\nApply the Serenity supply-chain bottleneck research workflow to "
+                f"{snapshot.fundamentals.name or snapshot.ticker} ({snapshot.ticker}). "
+                "Focus on value-chain position, upstream/downstream dependencies, "
+                "scarce chokepoints, verification evidence, risks, and next checks. "
+                "Use the snapshot data above as seed context; do not hallucinate "
+                "missing numbers.\n"
+            )
+        else:
+            user_msg_parts.append(
+                f"\n## Task\n\nApply the buffett deep-analysis path to "
+                f"{snapshot.fundamentals.name or snapshot.ticker} ({snapshot.ticker}). "
+                "Produce the full Standard Output Format. Use the snapshot data "
+                "above; do not hallucinate numbers you don't have.\n"
+            )
     # Language directive — placed last so it sticks. The buffett system prompt
     # is mostly English; without this nudge DeepSeek defaults to English.
     if (language or "en").lower().startswith("zh"):

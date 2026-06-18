@@ -8,17 +8,18 @@
 
 ## 功能介绍
 
-三种模式共用同一个股票代码输入框(美股走 yfinance,A 股走 akshare):
+四种模式共用同一个股票代码输入框(美股走 yfinance/Akshare fallback,A 股走 akshare):
 
 | 模式 | 流水线 | 延迟 | 单次成本 |
 |---|---|---|---|
 | **Snapshot** | yfinance / akshare → JSON | ~1 s | $0 |
-| **Buffett Quick** | snapshot + 158k 字符巴菲特 skill prompt → DeepSeek V4-Flash | ~30 s | ~$0.01 |
-| **TradingAgents Debate** | LangGraph 多智能体:市场 / 新闻 / 基本面分析师 → 多空对辩 → 交易员 → 4 智能体风险辩论 → 最终决策 | 3-5 分钟 | ~$0.20-0.30 |
+| **Buffett Quick** | snapshot + 158k 字符巴菲特 skill prompt → DeepSeek V4-Flash | ~30-60 s | ~$0.003-0.01 |
+| **Serenity Scan** | snapshot + Serenity 产业链/供应链瓶颈 prompt → DeepSeek V4-Flash | ~50-80 s | ~$0.003-0.01 |
+| **TradingAgents Debate** | LangGraph 多智能体:市场 / 新闻 / 基本面分析师 → 多空对辩 → 交易员 → 4-agent 风险辩论 → 最终决策 | 3-6 分钟 | ~$0.20-0.30 |
 
-前端通过 Server-Sent Events 渲染三种模式:
+前端通过 Server-Sent Events 渲染四种模式:
 
-- Quick 模式像 ChatGPT 一样**逐 token** 流式输出
+- Buffett Quick / Serenity Scan 像 ChatGPT 一样**逐 token** 流式输出
 - Debate 模式**逐智能体**流式输出:每个分析师卡片在完成后亮起,接着多空 / 风险回合按时间线依次展开,最后呈现一张包含目标价 / 止损 / 仓位建议的主结论卡片
 
 双语支持(English + 简体中文)—— 右上角切换;所有智能体输出都在 LLM 层用所选语言直接生成,而非事后翻译。
@@ -175,7 +176,7 @@ stock-web/
 - **阿里云轻量服务器探查** —— 识别服务器为 Alibaba Cloud Linux 3,OpenClaw/openclaw-gateway 占用约 943MB 内存;停止 OpenClaw/searxng/chrome 后可用内存从 296Mi 提升到 1.5Gi,释放 8080/13984/13986/13987/13995 端口。
 - **部署脚本加固** —— `deploy/setup-server.sh` 改为同时支持 apt 与 dnf/yum,Python 3.12 改由 uv 安装;`deploy/install.sh` 改为同步到 `/opt/stock-web` 并兼容 RHEL/Alibaba Cloud Linux 的 `/etc/nginx/conf.d` 布局;`deploy/nginx.conf` 改监听 `18080`,避开 OpenClaw 历史端口。
 - **部署打包脚本** —— 新增 `deploy/package.ps1`,生成 `dist/stock-web-deploy.tar.gz`;验证产物约 3.8MB,包含 `backend/vendor/TradingAgents`,排除 `.venv/node_modules/.next/out/.env` 等可再生/敏感目录。
-- **Stage A 公网验证** —— `http://47.93.21.132:18080` 已上线。验证页面、`/healthz`、AAPL snapshot、600519 snapshot、AAPL 中文 Quick SSE 和 AAPL 中文 TradingAgents Debate 均通过。修复 Redis 6.2 不兼容 `EXPIRE ... NX` 导致的 HTTP 500;修复 OpenClaw 残留 SOCKS 代理环境变量导致的 `socksio` / HTTPX 报错。Quick 实测 45 秒,`token=1997`,`done=1`,成本 `$0.002889`;Debate 实测 375.7 秒,`chunks=37`,`agent_complete=3`,`debate_turn=7`,`final=1`,`error=0`,成本估算 `$0.25`,最终建议 `SELL / 低配`。
+- **Stage A 公网验证** —— `http://47.93.21.132:18080` 已上线。验证页面、`/healthz`、AAPL snapshot、600519 snapshot、AAPL 中文 Quick SSE、AAPL 中文 TradingAgents Debate、NVDA 中文 Serenity 产业链扫描均通过。修复 Redis 6.2 不兼容 `EXPIRE ... NX` 导致的 HTTP 500;修复 OpenClaw 残留 SOCKS 代理环境变量导致的 `socksio` / HTTPX 报错。Quick 实测 45 秒,`token=1997`,`done=1`,成本 `$0.002889`;Debate 实测 375.7 秒,`chunks=37`,`agent_complete=3`,`debate_turn=7`,`final=1`,`error=0`,成本估算 `$0.25`,最终建议 `SELL / 低配`;Serenity 实测 49.9 秒,`token=2396`,`done=1`,成本 `$0.003283`。
 
 阻塞项 / 遗留:
 

@@ -12,6 +12,7 @@ interface Props {
   ticker: string;
   market: "US" | "CN";
   language: Lang;
+  skill?: "buffett" | "serenity";
   /** Bumping this re-runs the request. Parent passes a counter / nonce. */
   runId: number;
 }
@@ -25,7 +26,7 @@ interface DoneInfo {
   stop_reason?: string;
 }
 
-export function QuickResult({ ticker, market, runId, language }: Props) {
+export function QuickResult({ ticker, market, runId, language, skill = "buffett" }: Props) {
   const { t } = useT();
   const [text, setText] = useState("");
   const [model, setModel] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export function QuickResult({ ticker, market, runId, language }: Props) {
 
     const ctl = streamSSE(
       "/api/quick",
-      { ticker, market, skill: "buffett", language },
+      { ticker, market, skill, language },
       {
         onEvent: (event, data) => {
           switch (event) {
@@ -66,7 +67,7 @@ export function QuickResult({ ticker, market, runId, language }: Props) {
     );
     ctlRef.current = ctl;
     return () => ctl.abort();
-  }, [ticker, market, runId, language]);
+  }, [ticker, market, runId, language, skill]);
 
   const inflight = !done && !error;
 
@@ -82,7 +83,7 @@ export function QuickResult({ ticker, market, runId, language }: Props) {
             <CheckCircle2 className="h-4 w-4 text-bull" />
           )}
           <span className="text-sm font-medium">
-            {t("quick.title")} · {ticker}
+            {t(skill === "serenity" ? "quick.title.serenity" : "quick.title.buffett")} · {ticker}
           </span>
           {model && (
             <span className="text-[10px] text-muted/70 font-mono">{model}</span>

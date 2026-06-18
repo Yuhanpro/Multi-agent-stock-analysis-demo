@@ -25,6 +25,8 @@ const DICT = {
     "mode.snapshot.hint":  "Live data only — no LLM cost",
     "mode.quick.label":    "Buffett Quick",
     "mode.quick.hint":     "Single-agent value review · ~30s",
+    "mode.serenity.label": "Serenity Scan",
+    "mode.serenity.hint":  "Supply-chain bottleneck research · ~1 min",
     "mode.debate.label":   "Multi-Agent Debate",
     "mode.debate.hint":    "TradingAgents · ~3-5 min",
     // input
@@ -47,6 +49,8 @@ const DICT = {
     "snap.source":        "source",
     // quick result
     "quick.title":         "Buffett Quick Analysis",
+    "quick.title.buffett": "Buffett Quick Analysis",
+    "quick.title.serenity": "Serenity Supply Chain Scan",
     "quick.waiting":       "Waiting for first token…",
     // debate
     "debate.title":         "TradingAgents Debate",
@@ -89,6 +93,8 @@ const DICT = {
     "mode.snapshot.hint":  "纯数据 · 不调 LLM",
     "mode.quick.label":    "巴菲特速评",
     "mode.quick.hint":     "单 agent 价值判断 · 约 30 秒",
+    "mode.serenity.label": "Serenity 产业链扫描",
+    "mode.serenity.hint":  "供应链瓶颈研究 · 约 1 分钟",
     "mode.debate.label":   "多 agent 辩论",
     "mode.debate.hint":    "TradingAgents · 约 3-5 分钟",
     "input.market.us":          "美股",
@@ -107,6 +113,8 @@ const DICT = {
     "snap.bars":          "根 K 线",
     "snap.source":        "数据源",
     "quick.title":         "巴菲特速评",
+    "quick.title.buffett": "巴菲特速评",
+    "quick.title.serenity": "Serenity 产业链扫描",
     "quick.waiting":       "正在请求第一个 token…",
     "debate.title":         "TradingAgents 辩论",
     "debate.phase.analysts":   "分析师",
