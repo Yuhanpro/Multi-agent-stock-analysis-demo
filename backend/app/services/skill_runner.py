@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncIterator
 
+import httpx
 from openai import AsyncOpenAI
 
 from app.config import get_settings
@@ -196,6 +197,7 @@ async def stream_quick(
     client = AsyncOpenAI(
         api_key=settings.deepseek_api_key,
         base_url=settings.deepseek_base_url,
+        http_client=httpx.AsyncClient(trust_env=False),
     )
 
     try:

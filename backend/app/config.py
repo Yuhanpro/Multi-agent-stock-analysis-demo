@@ -13,6 +13,17 @@ from dotenv import load_dotenv
 # Load .env from backend/ if present (no-op when running on Railway with real env)
 load_dotenv()
 
+# The Aliyun light server used for Stage A has OpenClaw's proxy variables in
+# /etc/profile.d/proxy.sh (HTTP_PROXY=http://127.0.0.1:7890,
+# ALL_PROXY=socks5h://127.0.0.1:1080). That proxy returns HTTP 503 and also
+# makes httpx require socksio. The public demo should never inherit those
+# machine-level proxies, so clear them as early as possible on import.
+for _proxy_key in (
+    "HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
+    "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
+):
+    os.environ.pop(_proxy_key, None)
+
 
 def _split_csv(raw: str | None, default: list[str]) -> list[str]:
     if not raw:

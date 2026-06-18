@@ -175,7 +175,7 @@ stock-web/
 - **阿里云轻量服务器探查** —— 识别服务器为 Alibaba Cloud Linux 3,OpenClaw/openclaw-gateway 占用约 943MB 内存;停止 OpenClaw/searxng/chrome 后可用内存从 296Mi 提升到 1.5Gi,释放 8080/13984/13986/13987/13995 端口。
 - **部署脚本加固** —— `deploy/setup-server.sh` 改为同时支持 apt 与 dnf/yum,Python 3.12 改由 uv 安装;`deploy/install.sh` 改为同步到 `/opt/stock-web` 并兼容 RHEL/Alibaba Cloud Linux 的 `/etc/nginx/conf.d` 布局;`deploy/nginx.conf` 改监听 `18080`,避开 OpenClaw 历史端口。
 - **部署打包脚本** —— 新增 `deploy/package.ps1`,生成 `dist/stock-web-deploy.tar.gz`;验证产物约 3.8MB,包含 `backend/vendor/TradingAgents`,排除 `.venv/node_modules/.next/out/.env` 等可再生/敏感目录。
-- **Stage A 公网验证** —— `http://47.93.21.132:18080` 已上线。验证页面、`/healthz`、AAPL snapshot、600519 snapshot 以及 AAPL 中文 Quick SSE 均通过;Quick 实测 77 秒,`token=1585`,`done=1`,成本 `$0.003268`。修复 Redis 6.2 不兼容 `EXPIRE ... NX` 导致的 HTTP 500。
+- **Stage A 公网验证** —— `http://47.93.21.132:18080` 已上线。验证页面、`/healthz`、AAPL snapshot、600519 snapshot 以及 AAPL 中文 Quick SSE 均通过。修复 Redis 6.2 不兼容 `EXPIRE ... NX` 导致的 HTTP 500;修复 OpenClaw 残留 SOCKS 代理环境变量导致的 `socksio` / HTTPX 报错。最新 Quick 实测 45 秒,`token=1997`,`done=1`,成本 `$0.002889`。
 
 阻塞项 / 遗留:
 
