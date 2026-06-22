@@ -103,7 +103,7 @@ export default function Page() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/watchlist" className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:text-fg">
+            <Link href="/watchlist" className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:text-heading">
               Watchlist
             </Link>
             <LanguageSwitcher />
@@ -111,10 +111,10 @@ export default function Page() {
         </div>
 
         <div className="max-w-3xl space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight text-fg sm:text-5xl sm:leading-[1.05]">
+          <h1 className="text-3xl font-semibold tracking-tight text-heading sm:text-5xl sm:leading-[1.05]">
             {t("hero.h1")}
           </h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted sm:text-base">
+          <p className="max-w-2xl text-sm leading-6 text-body sm:text-base">
             {t("hero.lead")}
           </p>
         </div>
@@ -130,7 +130,7 @@ export default function Page() {
                   "flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors sm:text-sm",
                   mode === m.id
                     ? "bg-accent text-white"
-                    : "text-muted hover:bg-border/40 hover:text-fg"
+                    : "text-muted hover:bg-border/40 hover:text-heading"
                 )}
               >
                 {m.icon}
@@ -141,7 +141,7 @@ export default function Page() {
           <div className="mt-3 flex items-start gap-2 border-t border-border/60 px-1.5 pt-3 text-xs leading-5 text-muted">
             <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
             <span>
-              <span className="font-medium text-fg">{t(selectedMode.labelKey as any)}</span>
+              <span className="font-medium text-heading">{t(selectedMode.labelKey as any)}</span>
               <span className="mx-1 text-muted/50">/</span>
               {t(selectedMode.hintKey as any)}
             </span>

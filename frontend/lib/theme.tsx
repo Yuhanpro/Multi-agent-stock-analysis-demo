@@ -7,12 +7,20 @@ export type Density = "compact" | "normal" | "spacious";
 export interface ThemeConfig {
   bg: string;
   surface: string;
+  elevated: string;
+  input: string;
   border: string;
+  borderStrong: string;
+  heading: string;
+  body: string;
   muted: string;
-  fg: string;
+  subtle: string;
+  fg: string; // legacy alias kept for older saved themes / existing classes
   accent: string;
   bull: string;
   bear: string;
+  chartGrid: string;
+  chartTooltip: string;
   radius: string;
   density: Density;
 }
@@ -22,12 +30,20 @@ export const DEFAULT_THEME: ThemeConfig = {
   // product than saturated blue SaaS dashboard.
   bg: "222 28% 5%",
   surface: "222 22% 9%",
+  elevated: "222 19% 12%",
+  input: "222 24% 7%",
   border: "220 15% 22%",
+  borderStrong: "218 18% 32%",
+  heading: "210 28% 98%",
+  body: "214 16% 88%",
   muted: "218 10% 66%",
-  fg: "210 18% 96%",
+  subtle: "218 8% 48%",
+  fg: "214 16% 88%",
   accent: "202 84% 58%",
   bull: "148 58% 45%",
   bear: "2 62% 58%",
+  chartGrid: "220 15% 22%",
+  chartTooltip: "222 19% 12%",
   radius: "10px",
   density: "normal",
 };
@@ -37,12 +53,20 @@ const STORAGE_KEY = "stock-web:theme";
 const CSS_VAR_MAP: Record<keyof ThemeConfig, string | null> = {
   bg: "--theme-bg",
   surface: "--theme-surface",
+  elevated: "--theme-elevated",
+  input: "--theme-input",
   border: "--theme-border",
+  borderStrong: "--theme-border-strong",
+  heading: "--theme-heading",
+  body: "--theme-body",
   muted: "--theme-muted",
+  subtle: "--theme-subtle",
   fg: "--theme-fg",
   accent: "--theme-accent",
   bull: "--theme-bull",
   bear: "--theme-bear",
+  chartGrid: "--theme-chart-grid",
+  chartTooltip: "--theme-chart-tooltip",
   radius: "--theme-radius",
   density: "--theme-density",
 };
@@ -60,11 +84,15 @@ const Ctx = createContext<ThemeCtx | null>(null);
 function normalize(raw: unknown): ThemeConfig {
   if (!raw || typeof raw !== "object") return DEFAULT_THEME;
   const o = raw as Partial<ThemeConfig>;
-  return {
+  const merged: ThemeConfig = {
     ...DEFAULT_THEME,
     ...o,
+    // Back-compat: old themes only had fg/muted. Use fg as body if body missing.
+    body: o.body ?? o.fg ?? DEFAULT_THEME.body,
+    fg: o.fg ?? o.body ?? DEFAULT_THEME.fg,
     density: o.density === "compact" || o.density === "spacious" ? o.density : "normal",
   };
+  return merged;
 }
 
 function applyTheme(t: ThemeConfig) {

@@ -46,7 +46,7 @@ export function SnapshotCard({ snapshot }: Props) {
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div>
           <div className="flex items-baseline gap-3">
-            <h2 className="text-xl font-semibold text-fg">
+            <h2 className="text-xl font-semibold text-heading">
               {f.name || snapshot.ticker}
             </h2>
             <span className="text-sm text-muted font-mono">
@@ -79,45 +79,45 @@ export function SnapshotCard({ snapshot }: Props) {
               <linearGradient id="g-close" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
-                  stopColor={positive ? "hsl(142,71%,45%)" : "hsl(0,72%,51%)"}
+                  stopColor={positive ? "hsl(var(--theme-bull))" : "hsl(var(--theme-bear))"}
                   stopOpacity={0.5}
                 />
                 <stop
                   offset="100%"
-                  stopColor={positive ? "hsl(142,71%,45%)" : "hsl(0,72%,51%)"}
+                  stopColor={positive ? "hsl(var(--theme-bull))" : "hsl(var(--theme-bear))"}
                   stopOpacity={0}
                 />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="hsl(218,35%,20%)" vertical={false} />
+            <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
             <XAxis
               dataKey="date"
-              tick={{ fill: "hsl(218,15%,65%)", fontSize: 10 }}
+              tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               minTickGap={32}
             />
             <YAxis
               domain={["auto", "auto"]}
-              tick={{ fill: "hsl(218,15%,65%)", fontSize: 10 }}
+              tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               width={48}
             />
             <Tooltip
               contentStyle={{
-                background: "hsl(218,45%,10%)",
-                border: "1px solid hsl(218,35%,20%)",
+                background: "hsl(var(--theme-chart-tooltip))",
+                border: "1px solid hsl(var(--theme-chart-grid))",
                 borderRadius: 8,
                 fontSize: 12,
               }}
-              labelStyle={{ color: "hsl(210,30%,98%)" }}
+              labelStyle={{ color: "hsl(var(--theme-heading))" }}
               formatter={(v: number) => [fmtPrice(v, f.currency), "Close"]}
             />
             <Area
               type="monotone"
               dataKey="close"
-              stroke={positive ? "hsl(142,71%,45%)" : "hsl(0,72%,51%)"}
+              stroke={positive ? "hsl(var(--theme-bull))" : "hsl(var(--theme-bear))"}
               strokeWidth={2}
               fill="url(#g-close)"
             />

@@ -5,15 +5,23 @@ import { Paintbrush, RotateCcw, Copy, X } from "lucide-react";
 import { cn } from "@/lib/format";
 import { DEFAULT_THEME, hexToHsl, hslToHex, type Density, type ThemeConfig, useThemeEditor } from "@/lib/theme";
 
-const COLOR_FIELDS: Array<[keyof ThemeConfig, string]> = [
-  ["bg", "背景"],
-  ["surface", "卡片"],
-  ["border", "边框"],
-  ["fg", "文字"],
-  ["muted", "次级文字"],
-  ["accent", "主色"],
-  ["bull", "涨色"],
-  ["bear", "跌色"],
+const GROUPS: Array<{ title: string; fields: Array<[keyof ThemeConfig, string]> }> = [
+  {
+    title: "背景层",
+    fields: [["bg", "页面"], ["surface", "卡片"], ["elevated", "浮层"], ["input", "输入框"]],
+  },
+  {
+    title: "文字层",
+    fields: [["heading", "标题"], ["body", "正文"], ["muted", "说明"], ["subtle", "弱文字"]],
+  },
+  {
+    title: "边界与图表",
+    fields: [["border", "边框"], ["borderStrong", "强边框"], ["chartGrid", "图表网格"], ["chartTooltip", "图表浮层"]],
+  },
+  {
+    title: "语义色",
+    fields: [["accent", "主色"], ["bull", "涨色"], ["bear", "跌色"]],
+  },
 ];
 
 export function ThemeEditor() {
@@ -34,7 +42,7 @@ export function ThemeEditor() {
         onClick={() => setOpen(true)}
         className={cn(
           "fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full",
-          "border border-border bg-surface/95 px-3 py-2 text-xs font-mono text-fg shadow-lg",
+          "border border-border bg-elevated/95 px-3 py-2 text-xs font-mono text-heading shadow-lg",
           "hover:border-accent/60 hover:text-accent transition-colors"
         )}
       >
@@ -44,69 +52,77 @@ export function ThemeEditor() {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/35 p-3 sm:p-5">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-surface shadow-2xl">
+          <div className="w-full max-w-md rounded-xl border border-border bg-surface shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <div className="text-sm font-semibold">本地主题编辑器</div>
-                <div className="text-[11px] text-muted">只保存在当前浏览器,不影响其他访客</div>
+                <div className="text-sm font-semibold text-heading">本地主题编辑器</div>
+                <div className="text-[11px] text-subtle">只保存在当前浏览器,不影响其他访客</div>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="text-muted hover:text-fg">
+              <button type="button" onClick={() => setOpen(false)} className="text-muted hover:text-heading">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="max-h-[72vh] overflow-y-auto px-4 py-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {COLOR_FIELDS.map(([key, label]) => (
-                  <ColorField
-                    key={key}
-                    label={label}
-                    value={String(theme[key])}
-                    onChange={(v) => patchTheme({ [key]: v } as Partial<ThemeConfig>)}
+            <div className="max-h-[74vh] overflow-y-auto px-4 py-4 space-y-5">
+              {GROUPS.map((group) => (
+                <section key={group.title} className="space-y-2">
+                  <div className="text-xs font-medium text-muted">{group.title}</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {group.fields.map(([key, label]) => (
+                      <ColorField
+                        key={key}
+                        label={label}
+                        value={String(theme[key])}
+                        onChange={(v) => patchTheme({ [key]: v } as Partial<ThemeConfig>)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted">圆角</div>
+                  <input
+                    type="range"
+                    min={2}
+                    max={26}
+                    value={parseInt(theme.radius, 10) || 10}
+                    onChange={(e) => patchTheme({ radius: `${e.target.value}px` })}
+                    className="w-full accent-accent"
                   />
-                ))}
-              </div>
+                  <div className="text-[11px] text-subtle font-mono">{theme.radius}</div>
+                </div>
 
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted">圆角</div>
-                <input
-                  type="range"
-                  min={4}
-                  max={24}
-                  value={parseInt(theme.radius, 10) || 12}
-                  onChange={(e) => patchTheme({ radius: `${e.target.value}px` })}
-                  className="w-full accent-accent"
-                />
-                <div className="text-[11px] text-muted font-mono">{theme.radius}</div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted">页面密度</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["compact", "normal", "spacious"] as Density[]).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => patchTheme({ density: d })}
-                      className={cn(
-                        "rounded-lg border px-2 py-1.5 text-xs capitalize transition-colors",
-                        theme.density === d
-                          ? "border-accent bg-accent/10 text-accent"
-                          : "border-border text-muted hover:text-fg"
-                      )}
-                    >
-                      {d}
-                    </button>
-                  ))}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted">页面密度</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["compact", "normal", "spacious"] as Density[]).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => patchTheme({ density: d })}
+                        className={cn(
+                          "rounded-lg border px-2 py-1.5 text-xs capitalize transition-colors",
+                          theme.density === d
+                            ? "border-accent bg-accent/10 text-accent"
+                            : "border-border text-muted hover:text-heading"
+                        )}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-lg border border-border bg-bg/40 p-3 space-y-2">
                 <div className="text-xs text-muted">预览</div>
-                <div className="rounded-lg border border-border bg-surface p-3">
-                  <div className="text-sm font-semibold text-fg">TradingAgents Debate</div>
-                  <div className="mt-1 text-xs text-muted">深蓝背景 · 卡片 · 主色 · 涨跌色</div>
-                  <div className="mt-3 flex gap-2">
+                <div className="rounded-lg border border-border bg-elevated p-3">
+                  <div className="text-sm font-semibold text-heading">TradingAgents Debate</div>
+                  <div className="mt-1 text-xs text-body">标题、正文和说明文字现在可以分别调色。</div>
+                  <div className="mt-1 text-xs text-muted">这行是说明文字。</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-accent/15 px-2 py-1 text-[11px] text-accent">accent</span>
                     <span className="rounded-full bg-bull/15 px-2 py-1 text-[11px] text-bull">bull</span>
                     <span className="rounded-full bg-bear/15 px-2 py-1 text-[11px] text-bear">bear</span>
@@ -119,7 +135,7 @@ export function ThemeEditor() {
               <button
                 type="button"
                 onClick={resetTheme}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-fg"
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-heading"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset
@@ -127,7 +143,7 @@ export function ThemeEditor() {
               <button
                 type="button"
                 onClick={copy}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-fg"
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-heading"
               >
                 <Copy className="h-3.5 w-3.5" />
                 {copied ? "Copied" : "Copy JSON"}
@@ -152,7 +168,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   return (
     <label className="space-y-1">
       <div className="text-xs text-muted">{label}</div>
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-bg/40 px-2 py-1.5">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-input px-2 py-1.5">
         <input
           type="color"
           value={hex}
@@ -162,7 +178,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="min-w-0 flex-1 bg-transparent text-[11px] font-mono text-fg outline-none"
+          className="min-w-0 flex-1 bg-transparent text-[11px] font-mono text-heading outline-none"
         />
       </div>
     </label>

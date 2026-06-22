@@ -11,8 +11,13 @@ module.exports = {
         // Runtime-tweakable via CSS variables. See ThemeProvider / ThemeEditor.
         bg:      "hsl(var(--theme-bg))",
         surface: "hsl(var(--theme-surface))",
+        elevated: "hsl(var(--theme-elevated))",
+        input: "hsl(var(--theme-input))",
         border:  "hsl(var(--theme-border))",
+        heading: "hsl(var(--theme-heading))",
+        body: "hsl(var(--theme-body))",
         muted:   "hsl(var(--theme-muted))",
+        subtle: "hsl(var(--theme-subtle))",
         fg:      "hsl(var(--theme-fg))",
         accent:  "hsl(var(--theme-accent))",
         bull:    "hsl(var(--theme-bull))",
