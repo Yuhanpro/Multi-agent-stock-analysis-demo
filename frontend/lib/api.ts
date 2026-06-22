@@ -45,6 +45,13 @@ export interface WatchlistItem {
   note: string;
 }
 
+export interface SymbolSuggestion {
+  ticker: string;
+  market: Market;
+  name: string;
+  aliases: string[];
+}
+
 async function readJsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
@@ -64,6 +71,15 @@ export async function fetchSnapshot(
   const url = `${API_BASE}/api/snapshot?ticker=${encodeURIComponent(
     ticker
   )}&market=${market}`;
+  return readJsonOrThrow(await fetch(url));
+}
+
+export async function searchSymbols(
+  q: string,
+  market: Market | "ALL" = "ALL",
+  limit = 8
+): Promise<SymbolSuggestion[]> {
+  const url = `${API_BASE}/api/symbol-search?q=${encodeURIComponent(q)}&market=${market}&limit=${limit}`;
   return readJsonOrThrow(await fetch(url));
 }
 

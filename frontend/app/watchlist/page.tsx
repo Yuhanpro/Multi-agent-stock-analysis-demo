@@ -8,8 +8,10 @@ import {
   deleteWatchlistItem,
   fetchWatchlist,
   patchWatchlistItem,
+  searchSymbols,
   type AnalysisMode,
   type Market,
+  type SymbolSuggestion,
   type WatchlistItem,
 } from "@/lib/api";
 import { companyShortName } from "@/lib/company-names";
@@ -30,10 +32,30 @@ export default function WatchlistPage() {
     modes: ["snapshot", "quick"],
     note: "",
   });
+  const [suggestions, setSuggestions] = useState<SymbolSuggestion[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    const q = form.ticker.trim();
+    if (!q) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await searchSymbols(q, "ALL", 8);
+        setSuggestions(res);
+        setSuggestOpen(res.length > 0);
+      } catch {
+        setSuggestions([]);
+      }
+    }, 140);
+    return () => window.clearTimeout(timer);
+  }, [form.ticker]);
 
   async function refresh() {
     setLoading(true);
@@ -45,6 +67,11 @@ export default function WatchlistPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function chooseSuggestion(s: SymbolSuggestion) {
+    setForm((f) => ({ ...f, ticker: s.ticker, market: s.market, note: f.note || s.name }));
+    setSuggestOpen(false);
   }
 
   async function addItem() {
@@ -99,12 +126,36 @@ export default function WatchlistPage() {
 
       <section className="mt-6 rounded-xl border border-border bg-surface p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_120px_1.4fr_auto]">
-          <input
-            value={form.ticker}
-            onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value }))}
-            placeholder={t("watch.ticker.placeholder")}
-            className="rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent/70"
-          />
+          <div className="relative">
+            <input
+              value={form.ticker}
+              onFocus={() => setSuggestOpen(suggestions.length > 0)}
+              onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value }))}
+              placeholder={t("watch.ticker.placeholder")}
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent/70"
+            />
+            {suggestOpen && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-border bg-elevated shadow-2xl">
+                {suggestions.map((s) => (
+                  <button
+                    key={`${s.market}:${s.ticker}`}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => chooseSuggestion(s)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-border/35"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-mono font-semibold text-heading">{s.ticker} · {s.name}</div>
+                      {s.aliases.length > 0 && (
+                        <div className="truncate text-xs text-muted">{s.aliases.slice(0, 3).join(" / ")}</div>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{s.market}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <select
             value={form.market}
             onChange={(e) => setForm((f) => ({ ...f, market: e.target.value as Market }))}
