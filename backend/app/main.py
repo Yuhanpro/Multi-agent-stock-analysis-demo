@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routes import debate, quick, snapshot
+from app.routes import debate, quick, snapshot, watchlist
 from app.services import budget
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -25,13 +25,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 app.include_router(snapshot.router, prefix="/api", tags=["snapshot"])
 app.include_router(quick.router, prefix="/api", tags=["quick"])
 app.include_router(debate.router, prefix="/api", tags=["debate"])
+app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
 
 
 @app.get("/healthz")

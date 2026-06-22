@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Activity, Sparkles, Users, BarChart2, Network } from "lucide-react";
 import { StockInput } from "@/components/stock-input";
 import { SnapshotCard } from "@/components/snapshot-card";
@@ -35,6 +36,7 @@ export default function Page() {
   const [run, setRun] = useState<Run | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [inputDefault, setInputDefault] = useState<{ ticker: string; market: Market }>({ ticker: "AAPL", market: "US" });
 
   useEffect(() => {
     try {
@@ -52,7 +54,27 @@ export default function Page() {
     try { window.localStorage.setItem("stock-web:mode", next); } catch {}
   }
 
-  async function handleSubmit(ticker: string, market: Market) {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ticker = params.get("ticker");
+    const market = (params.get("market") || "US") as Market;
+    const modeParam = params.get("mode") as Mode | null;
+    const runNow = params.get("run") === "1";
+    const nextMode: Mode = modeParam && ["snapshot", "quick", "serenity", "debate"].includes(modeParam)
+      ? modeParam
+      : mode;
+    if (modeParam) setMode(nextMode);
+    if (ticker && (market === "US" || market === "CN")) {
+      setInputDefault({ ticker: ticker.toUpperCase(), market });
+    }
+    if (ticker && (market === "US" || market === "CN") && runNow) {
+      handleSubmit(ticker, market, nextMode);
+    }
+    // Only parse the initial URL once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSubmit(ticker: string, market: Market, modeOverride: Mode = mode) {
     setSnapshotLoading(true);
     setSnapshotError(null);
     setSnapshot(null);
@@ -61,7 +83,7 @@ export default function Page() {
     try {
       const s = await fetchSnapshot(ticker, market);
       setSnapshot(s);
-      setRun({ ticker, market, mode, nonce: Date.now() });
+      setRun({ ticker, market, mode: modeOverride, nonce: Date.now() });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       setSnapshotError(msg);
@@ -80,7 +102,12 @@ export default function Page() {
               {t("hero.eyebrow")}
             </span>
           </div>
-          <LanguageSwitcher />
+          <div className="flex items-center gap-2">
+            <Link href="/watchlist" className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:text-fg">
+              Watchlist
+            </Link>
+            <LanguageSwitcher />
+          </div>
         </div>
 
         <div className="max-w-3xl space-y-3">
@@ -121,7 +148,13 @@ export default function Page() {
           </div>
         </section>
 
-        <StockInput onSubmit={handleSubmit} loading={snapshotLoading} />
+        <StockInput
+          key={`${inputDefault.market}:${inputDefault.ticker}`}
+          defaultTicker={inputDefault.ticker}
+          defaultMarket={inputDefault.market}
+          onSubmit={(ticker, market) => handleSubmit(ticker, market)}
+          loading={snapshotLoading}
+        />
       </header>
 
       <section className="mt-6 space-y-6">

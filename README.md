@@ -179,6 +179,7 @@ stock-web/
 - **Stage A 公网验证** —— `http://47.93.21.132:18080` 已上线。验证页面、`/healthz`、AAPL snapshot、600519 snapshot、AAPL 中文 Quick SSE、AAPL 中文 TradingAgents Debate、NVDA 中文 Serenity 产业链扫描均通过。修复 Redis 6.2 不兼容 `EXPIRE ... NX` 导致的 HTTP 500;修复 OpenClaw 残留 SOCKS 代理环境变量导致的 `socksio` / HTTPX 报错。Quick 实测 45 秒,`token=1997`,`done=1`,成本 `$0.002889`;Debate 实测 375.7 秒,`chunks=37`,`agent_complete=3`,`debate_turn=7`,`final=1`,`error=0`,成本估算 `$0.25`,最终建议 `SELL / 低配`;Serenity 实测 49.9 秒,`token=2396`,`done=1`,成本 `$0.003283`。
 - **本地主题编辑器** —— 新增 `ThemeProvider` + `ThemeEditor`:右下角小按钮,支持实时调整背景/卡片/边框/文字/主色/涨跌色/圆角/密度,配置保存在当前浏览器 `localStorage['stock-web:theme']`,可 Reset 和 Copy JSON。Tailwind 颜色改为 CSS variables,后续可将用户调好的 JSON 固化为默认主题。已部署到公网。
 - **taste skill 页面重做** —— 安装 `design-taste-frontend` skill 后,把首页模式选择从大卡片改为更克制的分段导航 + 单行模式说明,减少 dashboard 味和廉价感;保留本地 Theme Editor 但让它默认收起、不污染主界面。随后将默认配色从饱和深蓝改为 graphite + steel-blue:低饱和背景、冷灰卡片、克制蓝色 accent、更 muted 的涨跌色。公网 smoke 验证页面 200、`Theme`、`Serenity Scan`、`Buffett Quick` 文案存在,`/healthz` 正常。
+- **Watchlist MVP** —— 新增 `backend/app/services/watchlist.py` + `routes/watchlist.py`,用 `backend/data/watchlist.json` 保存自选股;新增 `/api/watchlist` CRUD;新增 `/watchlist` 静态页面,支持添加/删除、自选市场、启用状态、备注、分析模式选择,并能从行内跳转回首页带参数分析。公网已初始化 AAPL/NVDA/600519 三只示例自选股,验证 `/watchlist` 页面和 API 均可访问。
 
 阻塞项 / 遗留:
 

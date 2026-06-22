@@ -1,9 +1,10 @@
 // API base URL for the FastAPI backend. Defaults to localhost:8000 for dev;
-// override with NEXT_PUBLIC_API_BASE in .env.local or Vercel env.
+// override with NEXT_PUBLIC_API_BASE in .env.local or at build time.
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 export type Market = "US" | "CN";
+export type AnalysisMode = "snapshot" | "quick" | "serenity" | "debate";
 
 export interface OHLCV {
   date: string;
@@ -36,14 +37,15 @@ export interface Snapshot {
   source: string;
 }
 
-export async function fetchSnapshot(
-  ticker: string,
-  market: Market
-): Promise<Snapshot> {
-  const url = `${API_BASE}/api/snapshot?ticker=${encodeURIComponent(
-    ticker
-  )}&market=${market}`;
-  const res = await fetch(url);
+export interface WatchlistItem {
+  ticker: string;
+  market: Market;
+  enabled: boolean;
+  modes: AnalysisMode[];
+  note: string;
+}
+
+async function readJsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
@@ -53,4 +55,47 @@ export async function fetchSnapshot(
     throw new Error(detail);
   }
   return res.json();
+}
+
+export async function fetchSnapshot(
+  ticker: string,
+  market: Market
+): Promise<Snapshot> {
+  const url = `${API_BASE}/api/snapshot?ticker=${encodeURIComponent(
+    ticker
+  )}&market=${market}`;
+  return readJsonOrThrow(await fetch(url));
+}
+
+export async function fetchWatchlist(): Promise<WatchlistItem[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/watchlist`));
+}
+
+export async function addWatchlistItem(item: WatchlistItem): Promise<WatchlistItem[]> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/watchlist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item),
+    })
+  );
+}
+
+export async function patchWatchlistItem(
+  item: Pick<WatchlistItem, "ticker" | "market">,
+  patch: Partial<Omit<WatchlistItem, "ticker" | "market">>
+): Promise<WatchlistItem[]> {
+  const url = `${API_BASE}/api/watchlist/${encodeURIComponent(item.ticker)}?market=${item.market}`;
+  return readJsonOrThrow(
+    await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    })
+  );
+}
+
+export async function deleteWatchlistItem(item: Pick<WatchlistItem, "ticker" | "market">): Promise<WatchlistItem[]> {
+  const url = `${API_BASE}/api/watchlist/${encodeURIComponent(item.ticker)}?market=${item.market}`;
+  return readJsonOrThrow(await fetch(url, { method: "DELETE" }));
 }
