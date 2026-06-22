@@ -11,8 +11,12 @@ const GROUPS: Array<{ title: string; fields: Array<[keyof ThemeConfig, string]> 
     fields: [["bg", "页面"], ["surface", "卡片"], ["elevated", "浮层"], ["input", "输入框"]],
   },
   {
-    title: "文字层",
+    title: "页面文字",
     fields: [["heading", "标题"], ["body", "正文"], ["muted", "说明"], ["subtle", "弱文字"]],
+  },
+  {
+    title: "分析报告文字",
+    fields: [["reportHeading", "报告标题"], ["reportBody", "报告正文"], ["reportMuted", "报告弱字"], ["reportAccent", "报告强调"]],
   },
   {
     title: "边界与图表",
@@ -140,9 +144,13 @@ export function ThemeEditor() {
               <div className="rounded-lg border border-border bg-bg/40 p-3 space-y-2">
                 <div className="text-xs text-muted">预览</div>
                 <div className="rounded-lg border border-border bg-elevated p-3">
-                  <div className="text-sm font-semibold text-heading">TradingAgents Debate</div>
-                  <div className="mt-1 text-xs text-body">标题、正文和说明文字现在可以分别调色。</div>
-                  <div className="mt-1 text-xs text-muted">这行是说明文字。</div>
+                  <div className="text-sm font-semibold text-heading">页面标题示例</div>
+                  <div className="mt-1 text-xs text-body">这是页面正文颜色。</div>
+                  <div className="mt-3 border-t border-border pt-3">
+                    <div className="text-sm font-semibold text-report-heading">报告标题示例</div>
+                    <div className="mt-1 text-xs text-report-body">这是分析报告正文颜色。</div>
+                    <div className="mt-1 text-xs text-report-muted">这是报告弱文字。</div>
+                  </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-accent/15 px-2 py-1 text-[11px] text-accent">accent</span>
                     <span className="rounded-full bg-bull/15 px-2 py-1 text-[11px] text-bull">bull</span>

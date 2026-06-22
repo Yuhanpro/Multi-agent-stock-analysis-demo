@@ -13,6 +13,10 @@
   --theme-body: 214 16% 88%;
   --theme-muted: 218 10% 66%;
   --theme-subtle: 218 8% 48%;
+  --theme-report-heading: 208 24% 96%;
+  --theme-report-body: 212 14% 84%;
+  --theme-report-muted: 218 9% 60%;
+  --theme-report-accent: 202 84% 64%;
   --theme-fg: 214 16% 88%;
   --theme-accent: 202 84% 58%;
   --theme-bull: 148 58% 45%;
@@ -47,18 +51,23 @@ html, body {
 .bg-elevated { background-color: hsl(var(--theme-elevated)); }
 .bg-input { background-color: hsl(var(--theme-input)); }
 .border-strong { border-color: hsl(var(--theme-border-strong)); }
+.text-report-heading { color: hsl(var(--theme-report-heading)); }
+.text-report-body { color: hsl(var(--theme-report-body)); }
+.text-report-muted { color: hsl(var(--theme-report-muted)); }
+.text-report-accent { color: hsl(var(--theme-report-accent)); }
 
-/* Markdown rendered by react-markdown gets these defaults */
-.prose-tight h1 { @apply text-xl font-semibold mt-4 mb-2; color: hsl(var(--theme-heading)); }
-.prose-tight h2 { @apply text-lg font-semibold mt-4 mb-2; color: hsl(var(--theme-heading) / 0.92); }
-.prose-tight h3 { @apply text-base font-semibold mt-3 mb-1; color: hsl(var(--theme-heading) / 0.84); }
-.prose-tight p  { @apply text-sm leading-6 my-2; color: hsl(var(--theme-body) / 0.88); }
+/* Markdown rendered by react-markdown gets these defaults.
+   It uses report-specific tokens so analysis text can differ from page chrome. */
+.prose-tight h1 { @apply text-xl font-semibold mt-4 mb-2; color: hsl(var(--theme-report-heading)); }
+.prose-tight h2 { @apply text-lg font-semibold mt-4 mb-2; color: hsl(var(--theme-report-heading) / 0.92); }
+.prose-tight h3 { @apply text-base font-semibold mt-3 mb-1; color: hsl(var(--theme-report-heading) / 0.84); }
+.prose-tight p  { @apply text-sm leading-6 my-2; color: hsl(var(--theme-report-body) / 0.9); }
 .prose-tight ul { @apply list-disc pl-5 my-2 text-sm; }
 .prose-tight ol { @apply list-decimal pl-5 my-2 text-sm; }
-.prose-tight li { @apply my-1; color: hsl(var(--theme-body) / 0.86); }
+.prose-tight li { @apply my-1; color: hsl(var(--theme-report-body) / 0.86); }
 .prose-tight code {
   @apply px-1 py-0.5 rounded bg-surface font-mono text-xs;
-  color: hsl(var(--theme-heading) / 0.9);
+  color: hsl(var(--theme-report-heading) / 0.9);
 }
 .prose-tight pre {
   @apply bg-surface border border-border rounded p-3 overflow-x-auto my-3 text-xs;
@@ -69,14 +78,15 @@ html, body {
 }
 .prose-tight th {
   @apply text-left font-semibold border-b border-border py-1 pr-3;
-  color: hsl(var(--theme-heading) / 0.9);
+  color: hsl(var(--theme-report-heading) / 0.9);
 }
 .prose-tight td {
   @apply border-b border-border/40 py-1 pr-3;
-  color: hsl(var(--theme-body) / 0.78);
+  color: hsl(var(--theme-report-body) / 0.78);
 }
-.prose-tight strong { color: hsl(var(--theme-heading)); font-weight: 600; }
+.prose-tight strong { color: hsl(var(--theme-report-heading)); font-weight: 600; }
 .prose-tight blockquote {
-  @apply border-l-2 border-accent/60 pl-3 my-2 italic;
-  color: hsl(var(--theme-body) / 0.72);
+  @apply border-l-2 pl-3 my-2 italic;
+  border-color: hsl(var(--theme-report-accent) / 0.6);
+  color: hsl(var(--theme-report-muted));
 }

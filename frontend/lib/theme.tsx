@@ -16,6 +16,10 @@ export interface ThemeConfig {
   body: string;
   muted: string;
   subtle: string;
+  reportHeading: string;
+  reportBody: string;
+  reportMuted: string;
+  reportAccent: string;
   fg: string; // legacy alias kept for older saved themes / existing classes
   accent: string;
   bull: string;
@@ -40,6 +44,10 @@ export const DEFAULT_THEME: ThemeConfig = {
   body: "214 16% 88%",
   muted: "218 10% 66%",
   subtle: "218 8% 48%",
+  reportHeading: "208 24% 96%",
+  reportBody: "212 14% 84%",
+  reportMuted: "218 9% 60%",
+  reportAccent: "202 84% 64%",
   fg: "214 16% 88%",
   accent: "202 84% 58%",
   bull: "148 58% 45%",
@@ -64,6 +72,10 @@ const CSS_VAR_MAP: Record<keyof ThemeConfig, string | null> = {
   body: "--theme-body",
   muted: "--theme-muted",
   subtle: "--theme-subtle",
+  reportHeading: "--theme-report-heading",
+  reportBody: "--theme-report-body",
+  reportMuted: "--theme-report-muted",
+  reportAccent: "--theme-report-accent",
   fg: "--theme-fg",
   accent: "--theme-accent",
   bull: "--theme-bull",
