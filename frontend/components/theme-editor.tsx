@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Paintbrush, RotateCcw, Copy, X } from "lucide-react";
 import { cn } from "@/lib/format";
-import { DEFAULT_THEME, hexToHsl, hslToHex, type Density, type ThemeConfig, useThemeEditor } from "@/lib/theme";
+import { DEFAULT_THEME, hexToHsl, hslToHex, type Density, type FontPreset, type ThemeConfig, useThemeEditor } from "@/lib/theme";
 
 const GROUPS: Array<{ title: string; fields: Array<[keyof ThemeConfig, string]> }> = [
   {
@@ -113,6 +113,27 @@ export function ThemeEditor() {
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted">字体</div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {(["system", "neo", "serif", "mono"] as FontPreset[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => patchTheme({ font: f })}
+                      className={cn(
+                        "rounded-lg border px-2 py-1.5 text-xs capitalize transition-colors",
+                        theme.font === f
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border text-muted hover:text-heading"
+                      )}
+                    >
+                      {f}
+                    </button>
+                  ))}
                 </div>
               </div>
 

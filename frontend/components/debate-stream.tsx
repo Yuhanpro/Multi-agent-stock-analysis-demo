@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { companyShortName } from "@/lib/company-names";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/format";
@@ -143,6 +144,8 @@ export function DebateStream({ ticker, market, runId, language }: Props) {
   }, [ticker, market, runId, language]);
 
   const inflight = phase !== "done" && !error;
+  const shortName = companyShortName(ticker, market);
+  const label = shortName ? `${ticker} · ${shortName}` : ticker;
 
   return (
     <div className="space-y-4">
@@ -156,7 +159,7 @@ export function DebateStream({ ticker, market, runId, language }: Props) {
             <CheckCircle2 className="h-4 w-4 text-bull" />
           )}
           <h3 className="text-sm font-semibold">
-            {t("debate.title")} · {ticker}
+            {t("debate.title")} · {label}
           </h3>
           <PhasePill phase={phase} />
         </div>

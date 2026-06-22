@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import type { Snapshot } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { companyShortName } from "@/lib/company-names";
 import { cn, fmtNumber, fmtPct, fmtPrice } from "@/lib/format";
 
 interface Props {
@@ -22,6 +23,8 @@ export function SnapshotCard({ snapshot }: Props) {
   const { t } = useT();
   const { fundamentals: f, ohlcv } = snapshot;
   const positive = (snapshot.change_pct ?? 0) >= 0;
+  const shortName = companyShortName(snapshot.ticker, snapshot.market, f.name);
+  const displayName = shortName || f.name || snapshot.ticker;
 
   const chartData = useMemo(
     () =>
@@ -47,10 +50,10 @@ export function SnapshotCard({ snapshot }: Props) {
         <div>
           <div className="flex items-baseline gap-3">
             <h2 className="text-xl font-semibold text-heading">
-              {f.name || snapshot.ticker}
+              {snapshot.ticker}{displayName && displayName !== snapshot.ticker ? ` · ${displayName}` : ""}
             </h2>
             <span className="text-sm text-muted font-mono">
-              {snapshot.ticker} · {snapshot.market}
+              {snapshot.market}
             </span>
           </div>
           {f.sector && (

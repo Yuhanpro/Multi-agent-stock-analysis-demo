@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { streamSSE } from "@/lib/sse";
+import { companyShortName } from "@/lib/company-names";
 import { useT, type Lang } from "@/lib/i18n";
 import { fmtNumber } from "@/lib/format";
 
@@ -70,6 +71,8 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
   }, [ticker, market, runId, language, skill]);
 
   const inflight = !done && !error;
+  const shortName = companyShortName(ticker, market);
+  const label = shortName ? `${ticker} · ${shortName}` : ticker;
 
   return (
     <div className="bg-surface border border-border rounded-xl">
@@ -83,7 +86,7 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
             <CheckCircle2 className="h-4 w-4 text-bull" />
           )}
           <span className="text-sm font-medium">
-            {t(skill === "serenity" ? "quick.title.serenity" : "quick.title.buffett")} · {ticker}
+            {t(skill === "serenity" ? "quick.title.serenity" : "quick.title.buffett")} · {label}
           </span>
           {model && (
             <span className="text-[10px] text-muted/70 font-mono">{model}</span>

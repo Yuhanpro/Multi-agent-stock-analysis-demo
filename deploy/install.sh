@@ -36,6 +36,7 @@ mkdir -p "$APP_ROOT"
 rsync -a --delete \
     --exclude '.git/' \
     --exclude 'backend/.venv/' \
+    --exclude 'backend/data/' \
     --exclude 'frontend/node_modules/' \
     --exclude 'frontend/.next/' \
     --exclude 'frontend/out/' \

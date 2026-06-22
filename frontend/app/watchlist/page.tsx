@@ -12,6 +12,7 @@ import {
   type Market,
   type WatchlistItem,
 } from "@/lib/api";
+import { companyShortName } from "@/lib/company-names";
 import { cn } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 
@@ -172,12 +173,14 @@ function WatchRow({ item, onPatch, onDelete }: {
   const { t } = useT();
   const defaultMode = item.modes[0] ?? "snapshot";
   const href = `/?ticker=${encodeURIComponent(item.ticker)}&market=${item.market}&mode=${defaultMode}&run=1`;
+  const shortName = companyShortName(item.ticker, item.market, item.note);
+  const label = shortName ? `${item.ticker} · ${shortName}` : item.ticker;
 
   return (
     <div className={cn("grid gap-3 p-4 md:grid-cols-[1fr_220px_auto] md:items-center", !item.enabled && "opacity-45")}>
       <div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-base font-semibold">{item.ticker}</span>
+          <span className="font-mono text-base font-semibold">{label}</span>
           <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{item.market}</span>
           <label className="ml-1 inline-flex items-center gap-1 text-xs text-muted">
             <input

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 export type Density = "compact" | "normal" | "spacious";
+export type FontPreset = "system" | "neo" | "serif" | "mono";
 
 export interface ThemeConfig {
   bg: string;
@@ -23,6 +24,7 @@ export interface ThemeConfig {
   chartTooltip: string;
   radius: string;
   density: Density;
+  font: FontPreset;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -46,6 +48,7 @@ export const DEFAULT_THEME: ThemeConfig = {
   chartTooltip: "222 19% 12%",
   radius: "10px",
   density: "normal",
+  font: "system",
 };
 
 const STORAGE_KEY = "stock-web:theme";
@@ -69,6 +72,7 @@ const CSS_VAR_MAP: Record<keyof ThemeConfig, string | null> = {
   chartTooltip: "--theme-chart-tooltip",
   radius: "--theme-radius",
   density: "--theme-density",
+  font: "--theme-font-family",
 };
 
 interface ThemeCtx {
@@ -91,6 +95,7 @@ function normalize(raw: unknown): ThemeConfig {
     body: o.body ?? o.fg ?? DEFAULT_THEME.body,
     fg: o.fg ?? o.body ?? DEFAULT_THEME.fg,
     density: o.density === "compact" || o.density === "spacious" ? o.density : "normal",
+    font: o.font === "neo" || o.font === "serif" || o.font === "mono" ? o.font : "system",
   };
   return merged;
 }
@@ -100,7 +105,9 @@ function applyTheme(t: ThemeConfig) {
   const root = document.documentElement;
   for (const [key, varName] of Object.entries(CSS_VAR_MAP) as Array<[keyof ThemeConfig, string | null]>) {
     if (!varName) continue;
-    const value = key === "density" ? densityScale(t.density) : t[key];
+    const value = key === "density" ? densityScale(t.density)
+      : key === "font" ? fontStack(t.font)
+      : t[key];
     root.style.setProperty(varName, String(value));
   }
 }
@@ -109,6 +116,13 @@ function densityScale(d: Density) {
   if (d === "compact") return "0.88";
   if (d === "spacious") return "1.12";
   return "1";
+}
+
+function fontStack(f: FontPreset) {
+  if (f === "neo") return "ui-sans-serif, Inter, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif";
+  if (f === "serif") return "Georgia, 'Times New Roman', 'Songti SC', 'SimSun', serif";
+  if (f === "mono") return "ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace";
+  return "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
