@@ -15,7 +15,9 @@ from pydantic import BaseModel
 
 MarketFilter = Literal["ALL", "US", "CN"]
 
-DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "symbols_seed.json"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+SEED_PATH = DATA_DIR / "symbols_seed.json"
+CN_FULL_PATH = DATA_DIR / "symbols_cn_full.json"
 
 
 class SymbolSuggestion(BaseModel):
@@ -27,8 +29,24 @@ class SymbolSuggestion(BaseModel):
 
 @lru_cache(maxsize=1)
 def load_symbols() -> list[SymbolSuggestion]:
-    raw = json.loads(DATA_PATH.read_text(encoding="utf-8"))
-    return [SymbolSuggestion.model_validate(x) for x in raw]
+    raw: list[dict] = []
+    if SEED_PATH.exists():
+        raw.extend(json.loads(SEED_PATH.read_text(encoding="utf-8")))
+    if CN_FULL_PATH.exists():
+        raw.extend(json.loads(CN_FULL_PATH.read_text(encoding="utf-8")))
+
+    # De-dupe, with curated seed taking precedence over the full A-share cache
+    # so aliases like "茅台" / "苹果" are preserved.
+    seen: set[tuple[str, str]] = set()
+    out: list[SymbolSuggestion] = []
+    for item in raw:
+        s = SymbolSuggestion.model_validate(item)
+        key = (s.market, s.ticker)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+    return out
 
 
 def search_symbols(q: str, market: MarketFilter = "ALL", limit: int = 8) -> list[SymbolSuggestion]:
