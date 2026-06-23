@@ -165,7 +165,7 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
-### 2026-06-23 — A 股成长性指标补全
+### 2026-06-23 — A 股基本面补全(成长性 + 估值/盈利/质量)
 
 交付内容:
 
@@ -176,10 +176,10 @@ stock-web/
 - **前端口径脚注更新** —— Snapshot 底部口径说明补上 A 股:"A股/美股增长为同比(A股取最新报告期),港股为滚动增长"。
 - **验证** —— 对 600519(茅台,消费)与 000001(平安银行,金融)实测提取逻辑:营收同比 +6.34% / +4.65%,净利同比 +1.47% / +3.03%,eps 取年报值正确,单位口径核对无误。
 - **已部署到公网并验证** —— tarball 上传 + 后端 rsync 到 `/opt/stock-web` + 重启 `stock-web-backend`(`~/stock-web` 部署源同步更新,避免下次 install.sh 回滚);`http://47.93.21.132:18080` 上 600519 快照部署前 `revenue/eps` 全空,部署后补上营收 547.0亿、营收同比 +6.34%、净利 272.4亿、净利同比 +1.47%、eps 65.66,`source_detail` 含 `+ stock_financial_abstract (20260331)`。证实 `stock_financial_abstract` 走新浪源,在 VPS 上可用。
+- **A 股 PE/PB/ROE/利润率补全(同源派生)** —— 既然 legulegu(`stock_a_indicator_lg` 已从该版 akshare 移除)与 eastmoney 估值接口在 VPS 失效(`RemoteDisconnected` / `NoneType`),改由同一 `stock_financial_abstract` 表派生:PB=现价/最新每股净资产;PE=现价/TTM EPS(EPS 为年内累计,TTM=本期累计 + 上年报 − 去年同期);ROE/毛利率/净利率取最新年报、资产负债率取最新报告期;ROE 键括号全/半角跨版本不一,改用前缀匹配解析避免静默失败;全部 `if None` 兜底,EM 接口恢复时仍优先。实测茅台 PE 18.5 / PB 5.65 / ROE 32.5%、平安银行 PE 5.05 / PB 0.45 / 负债率 91%、宁德 PE 22.4 / PB 5.01,均合理。已部署(单文件 scp 同步 `~/stock-web` + `/opt` + 重启),公网 600519 **估值/盈利/增长/质量四区现已全部有数**。
 
 阻塞项 / 遗留:
 
-- **A 股 PE/PB/ROE 在生产仍为空**(确认):VPS 上 `stock_a_indicator_lg`(legulegu)已从该版 akshare 移除,`stock_individual_info_em` / `stock_financial_analysis_indicator_em`(eastmoney)在 VPS 上撞 `RemoteDisconnected` / `NoneType` 报错(均被 try/except 兜住)。当前 A 股生产快照有价格/市值/营收/净利/同比/eps,但缺 PE/PB/ROE/毛利率等。后续可换稳定源:用 `stock_financial_abstract` 的 `每股净资产` + 价格算 PB,用 TTM(最近四季)EPS 算 PE,避免依赖已失效接口。
 - **前端脚注已上线**(本机 build → 上传 `out/`)—— 为避开 1.8Gi 内存机上 `npm run build` 的 OOM 风险,改为**本机** `NEXT_PUBLIC_API_BASE=http://47.93.21.132:18080 npm run build` 产出 `out/`,打包 scp 到服务器后 `sudo rsync --delete` 到 `/var/www/stock-web` 并 reload nginx。公网已验证 index 引用新 chunk `page-6cef5c10fcc1d96c.js` 且含"A股取最新报告期"。**这是该小内存机推荐的前端部署法**(server 端 npm build 风险高)。
 - 部署用 `admin@47.93.21.132`(非 root)+ `id_ed25519` 免密 + 免密 sudo;`~/stock-web` 为 tarball 部署(非 git clone);服务器 shell 残留 OpenClaw 的 `HTTP_PROXY/ALL_PROXY`,本机 `curl 127.0.0.1` 会被代理返回 503,需 `--noproxy "*"` 或 `unset` 代理变量复核(install.sh 已 unset)。
 
