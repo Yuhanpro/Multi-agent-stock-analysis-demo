@@ -10,6 +10,7 @@ consume it, so the surface area must be stable.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Literal
 
@@ -27,6 +28,23 @@ class OHLCV(BaseModel):
     low: float
     close: float
     volume: float
+
+
+class RealtimeQuote(BaseModel):
+    current_price: float | None = None
+    open: float | None = None
+    prev_close: float | None = None
+    day_high: float | None = None
+    day_low: float | None = None
+    volume: float | None = None
+    amount: float | None = None
+    turnover_rate: float | None = None  # decimal
+    amplitude: float | None = None  # decimal
+    change_pct: float | None = None  # decimal
+    bid: float | None = None
+    ask: float | None = None
+    timestamp: str | None = None
+    source: str | None = None
 
 
 class Fundamentals(BaseModel):
@@ -57,6 +75,7 @@ class Snapshot(BaseModel):
     change_pct: float | None  # latest day, decimal (0.012 = +1.2%)
     ohlcv: list[OHLCV]
     fundamentals: Fundamentals
+    realtime: RealtimeQuote | None = None
     source: str  # "yfinance" | "akshare" | "yfinance+fallback"
 
 
@@ -238,6 +257,44 @@ def _us_snapshot_akshare(ticker: str) -> Snapshot:
     )
 
 
+_CN_SPOT_CACHE: tuple[float, object] | None = None
+
+
+def _cn_realtime_quote(code: str) -> RealtimeQuote | None:
+    """Best-effort A-share real-time quote from akshare stock_zh_a_spot.
+
+    The endpoint downloads the whole A-share table and is relatively slow, so
+    cache it for 60 seconds per process.
+    """
+    global _CN_SPOT_CACHE
+    import akshare as ak
+
+    now = time.time()
+    if _CN_SPOT_CACHE is None or now - _CN_SPOT_CACHE[0] > 60:
+        _CN_SPOT_CACHE = (now, ak.stock_zh_a_spot())
+    df = _CN_SPOT_CACHE[1]
+    target = df[df["代码"].astype(str).str.contains(code, na=False)]
+    if target.empty:
+        return None
+    row = target.iloc[0]
+    return RealtimeQuote(
+        current_price=_safe_float(row.get("最新价")),
+        open=_safe_float(row.get("今开")),
+        prev_close=_safe_float(row.get("昨收")),
+        day_high=_safe_float(row.get("最高")),
+        day_low=_safe_float(row.get("最低")),
+        volume=_safe_float(row.get("成交量")),
+        amount=_safe_float(row.get("成交额")),
+        turnover_rate=None,
+        amplitude=None,
+        change_pct=_pct(row.get("涨跌幅")),
+        bid=_safe_float(row.get("买入")),
+        ask=_safe_float(row.get("卖出")),
+        timestamp=str(row.get("时间戳")) if row.get("时间戳") is not None else None,
+        source="akshare stock_zh_a_spot",
+    )
+
+
 # ---------- CN (akshare) ----------------------------------------------------
 
 
@@ -314,6 +371,15 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     prev_close = ohlcv[-2].close if len(ohlcv) > 1 else last_close
     change_pct = (last_close - prev_close) / prev_close if prev_close else None
 
+    realtime = None
+    try:
+        realtime = _cn_realtime_quote(code)
+        if realtime and realtime.current_price:
+            last_close = realtime.current_price
+            change_pct = realtime.change_pct if realtime.change_pct is not None else change_pct
+    except Exception as e:
+        log.warning("akshare CN realtime quote failed for %s: %s", code, e)
+
     fundamentals = Fundamentals(name=_symbol_name(code, "CN"), currency="CNY", source_detail=source)
     if c_outstanding:
         try:
@@ -372,6 +438,7 @@ def _cn_snapshot(ticker: str) -> Snapshot:
         change_pct=change_pct,
         ohlcv=ohlcv,
         fundamentals=fundamentals,
+        realtime=realtime,
         source=source,
     )
 

@@ -36,6 +36,23 @@ export interface Fundamentals {
   source_detail: string | null;
 }
 
+export interface RealtimeQuote {
+  current_price: number | null;
+  open: number | null;
+  prev_close: number | null;
+  day_high: number | null;
+  day_low: number | null;
+  volume: number | null;
+  amount: number | null;
+  turnover_rate: number | null;
+  amplitude: number | null;
+  change_pct: number | null;
+  bid: number | null;
+  ask: number | null;
+  timestamp: string | null;
+  source: string | null;
+}
+
 export interface Snapshot {
   ticker: string;
   market: Market;
@@ -43,6 +60,7 @@ export interface Snapshot {
   change_pct: number | null;
   ohlcv: OHLCV[];
   fundamentals: Fundamentals;
+  realtime: RealtimeQuote | null;
   source: string;
 }
 

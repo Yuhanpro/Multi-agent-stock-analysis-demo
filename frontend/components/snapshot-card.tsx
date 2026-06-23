@@ -30,7 +30,19 @@ export function SnapshotCard({ snapshot }: Props) {
 
   const chartData = useMemo(() => ohlcv.map((c) => ({ date: c.date.slice(5), close: c.close })), [ohlcv]);
 
+  const rt = snapshot.realtime;
   const groups = compactGroups([
+    {
+      title: lang === "zh" ? "实时" : "Realtime",
+      stats: [
+        stat(lang === "zh" ? "现价" : "Last", rt?.current_price, (v) => fmtPrice(v, f.currency)),
+        stat(lang === "zh" ? "今开" : "Open", rt?.open, (v) => fmtPrice(v, f.currency)),
+        stat(lang === "zh" ? "最高" : "High", rt?.day_high, (v) => fmtPrice(v, f.currency)),
+        stat(lang === "zh" ? "最低" : "Low", rt?.day_low, (v) => fmtPrice(v, f.currency)),
+        stat(lang === "zh" ? "成交额" : "Amount", rt?.amount, (v) => fmtNumber(v, 2)),
+        stat(lang === "zh" ? "涨跌幅" : "Change", rt?.change_pct, fmtPct),
+      ],
+    },
     {
       title: lang === "zh" ? "估值" : "Valuation",
       stats: [
