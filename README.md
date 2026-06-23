@@ -180,7 +180,7 @@ stock-web/
 阻塞项 / 遗留:
 
 - **A 股 PE/PB/ROE 在生产仍为空**(确认):VPS 上 `stock_a_indicator_lg`(legulegu)已从该版 akshare 移除,`stock_individual_info_em` / `stock_financial_analysis_indicator_em`(eastmoney)在 VPS 上撞 `RemoteDisconnected` / `NoneType` 报错(均被 try/except 兜住)。当前 A 股生产快照有价格/市值/营收/净利/同比/eps,但缺 PE/PB/ROE/毛利率等。后续可换稳定源:用 `stock_financial_abstract` 的 `每股净资产` + 价格算 PB,用 TTM(最近四季)EPS 算 PE,避免依赖已失效接口。
-- **前端口径脚注尚未上线** —— `snapshot-card.tsx` 脚注补 A 股的改动已提交,但为避开 1.8Gi 内存机上 `npm run build` 的 OOM 风险,本次只部署了后端;前端可改为本机 build 后上传 `out/`,或在 stop openclaw 释放内存后于服务器 build。
+- **前端脚注已上线**(本机 build → 上传 `out/`)—— 为避开 1.8Gi 内存机上 `npm run build` 的 OOM 风险,改为**本机** `NEXT_PUBLIC_API_BASE=http://47.93.21.132:18080 npm run build` 产出 `out/`,打包 scp 到服务器后 `sudo rsync --delete` 到 `/var/www/stock-web` 并 reload nginx。公网已验证 index 引用新 chunk `page-6cef5c10fcc1d96c.js` 且含"A股取最新报告期"。**这是该小内存机推荐的前端部署法**(server 端 npm build 风险高)。
 - 部署用 `admin@47.93.21.132`(非 root)+ `id_ed25519` 免密 + 免密 sudo;`~/stock-web` 为 tarball 部署(非 git clone);服务器 shell 残留 OpenClaw 的 `HTTP_PROXY/ALL_PROXY`,本机 `curl 127.0.0.1` 会被代理返回 503,需 `--noproxy "*"` 或 `unset` 代理变量复核(install.sh 已 unset)。
 
 ### 2026-06-17 — 迁移到 E 盘、GitHub work items、阿里云部署准备
