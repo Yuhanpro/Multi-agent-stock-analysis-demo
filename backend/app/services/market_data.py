@@ -466,13 +466,71 @@ def _cn_snapshot(ticker: str) -> Snapshot:
                     fundamentals.revenue_yoy = rev_g / 100.0
                 if fundamentals.net_income_yoy is None and ni_g is not None:
                     fundamentals.net_income_yoy = ni_g / 100.0
+                def _val_at(name: str, col: str | None):
+                    row = by_ind.get(name)
+                    return _safe_float(row.get(col)) if (row is not None and col) else None
+
+                def _newest(name: str):
+                    row = by_ind.get(name)
+                    if row is None:
+                        return None
+                    for d in date_cols:  # newest first
+                        v = _safe_float(row.get(d))
+                        if v is not None:
+                            return v
+                    return None
+
+                annual = next((d for d in date_cols if d.endswith("1231")), None)
+
                 # EPS backstop: prefer the latest annual (FY) figure so a single
                 # quarter's cumulative EPS is not shown as if it were trailing.
-                if fundamentals.eps is None:
-                    annual = next((d for d in date_cols if d.endswith("1231")), None)
-                    eps_row = by_ind.get("基本每股收益")
-                    if annual and eps_row is not None:
-                        fundamentals.eps = _safe_float(eps_row.get(annual))
+                if fundamentals.eps is None and annual:
+                    fundamentals.eps = _val_at("基本每股收益", annual)
+
+                # The EM/legulegu valuation endpoints are dead on the prod VPS, so
+                # derive PE/PB/ROE/margins from this (Sina-backed) source too.
+
+                # PB from latest book value per share (balance-sheet snapshot).
+                if fundamentals.pb is None and last_close:
+                    bvps = _newest("每股净资产")
+                    if bvps:
+                        fundamentals.pb = last_close / bvps
+
+                # PE from trailing-12-month EPS. EPS here is cumulative within a
+                # fiscal year, so TTM = YTD + prevFY − prev-year-same-period.
+                if fundamentals.pe is None and last_close:
+                    ttm_eps = None
+                    if period.endswith("1231"):
+                        ttm_eps = _val_at("基本每股收益", period)
+                    else:
+                        yr = int(period[:4])
+                        ytd = _val_at("基本每股收益", period)
+                        pfy = _val_at("基本每股收益", f"{yr - 1}1231")
+                        psame = _val_at("基本每股收益", f"{yr - 1}{period[4:]}")
+                        if None not in (ytd, pfy, psame):
+                            ttm_eps = ytd + pfy - psame
+                        elif annual:
+                            ttm_eps = _val_at("基本每股收益", annual)
+                    if ttm_eps and ttm_eps > 0:
+                        fundamentals.pe = last_close / ttm_eps
+
+                # ROE / margins: latest annual (FY) headline figure; debt ratio is
+                # a balance-sheet snapshot so take the newest available period.
+                # ROE key has full/half-width parens across akshare versions —
+                # resolve it by prefix instead of hard-coding the punctuation.
+                roe_key = next(
+                    (k for k in by_ind if k.startswith("净资产收益率") and "_" not in k and "摊薄" not in k),
+                    None,
+                )
+                if fundamentals.roe is None and annual and roe_key:
+                    fundamentals.roe = _pct(_val_at(roe_key, annual))
+                if fundamentals.gross_margin is None and annual:
+                    fundamentals.gross_margin = _pct(_val_at("毛利率", annual))
+                if fundamentals.net_margin is None and annual:
+                    fundamentals.net_margin = _pct(_val_at("销售净利率", annual))
+                if fundamentals.debt_asset_ratio is None:
+                    fundamentals.debt_asset_ratio = _pct(_newest("资产负债率"))
+
                 tag = f"stock_financial_abstract ({period})"
                 fundamentals.source_detail = (
                     f"{fundamentals.source_detail} + {tag}" if fundamentals.source_detail else tag
