@@ -21,7 +21,7 @@ router = APIRouter()
 
 class QuickRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=16)
-    market: Literal["US", "CN"] = "US"
+    market: Literal["US", "CN", "HK"] = "US"
     skill: Literal["buffett", "serenity"] = "buffett"
     language: Literal["en", "zh"] = "en"
     question: str | None = Field(None, max_length=2000)

@@ -6,12 +6,13 @@ import remarkGfm from "remark-gfm";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { streamSSE } from "@/lib/sse";
 import { companyShortName } from "@/lib/company-names";
+import type { Market } from "@/lib/api";
 import { useT, type Lang } from "@/lib/i18n";
 import { fmtNumber } from "@/lib/format";
 
 interface Props {
   ticker: string;
-  market: "US" | "CN";
+  market: Market;
   language: Lang;
   skill?: "buffett" | "serenity";
   /** Bumping this re-runs the request. Parent passes a counter / nonce. */

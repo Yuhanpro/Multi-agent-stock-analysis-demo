@@ -24,7 +24,7 @@ ALLOWED_ANALYSTS = {"market", "news", "fundamentals", "social"}
 
 class DebateRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=16)
-    market: Literal["US", "CN"] = "US"
+    market: Literal["US", "CN", "HK"] = "US"
     trade_date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     analysts: list[str] = Field(default_factory=lambda: ["market", "news", "fundamentals"])
     language: Literal["en", "zh"] = "en"

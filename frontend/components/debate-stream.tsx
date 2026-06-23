@@ -18,13 +18,14 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { companyShortName } from "@/lib/company-names";
+import type { Market } from "@/lib/api";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 
 interface Props {
   ticker: string;
-  market: "US" | "CN";
+  market: Market;
   language: Lang;
   runId: number;
 }

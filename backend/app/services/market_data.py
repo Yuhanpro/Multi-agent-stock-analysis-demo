@@ -1,7 +1,8 @@
 """Unified market-data layer.
 
-US tickers -> yfinance.
+US tickers -> yfinance (akshare fallback on mainland cloud).
 CN tickers (A-shares, 6-digit codes) -> akshare.
+HK tickers (5-digit codes) -> akshare.
 
 We deliberately keep the Snapshot schema small; LLMs and the frontend both
 consume it, so the surface area must be stable.
@@ -16,7 +17,7 @@ from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
-Market = Literal["US", "CN"]
+Market = Literal["US", "CN", "HK"]
 
 
 class OHLCV(BaseModel):
@@ -280,6 +281,53 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     )
 
 
+# ---------- HK (akshare) ----------------------------------------------------
+
+
+def _hk_snapshot(ticker: str) -> Snapshot:
+    import akshare as ak
+
+    code = ticker.strip().upper().replace("HK", "").zfill(5)
+    hist = ak.stock_hk_daily(symbol=code, adjust="")
+    if hist is None or hist.empty:
+        raise ValueError(f"akshare returned no HK history for {code}")
+
+    hist = hist.tail(90)
+    ohlcv = [
+        OHLCV(
+            date=str(row["date"])[:10],
+            open=float(row["open"]),
+            high=float(row["high"]),
+            low=float(row["low"]),
+            close=float(row["close"]),
+            volume=float(row["volume"]),
+        )
+        for _, row in hist.iterrows()
+        if row["close"] == row["close"]
+    ]
+    if not ohlcv:
+        raise ValueError(f"akshare returned only NaN HK rows for {code}")
+
+    last_close = ohlcv[-1].close
+    prev_close = ohlcv[-2].close if len(ohlcv) > 1 else last_close
+    change_pct = (last_close - prev_close) / prev_close if prev_close else None
+
+    fundamentals = Fundamentals(
+        name=code,
+        currency="HKD",
+    )
+
+    return Snapshot(
+        ticker=code,
+        market="HK",
+        price=last_close,
+        change_pct=change_pct,
+        ohlcv=ohlcv,
+        fundamentals=fundamentals,
+        source="akshare-hk-daily",
+    )
+
+
 # ---------- Public API ------------------------------------------------------
 
 
@@ -291,6 +339,8 @@ def get_snapshot(ticker: str, market: Market) -> Snapshot:
         return _us_snapshot(ticker)
     if market == "CN":
         return _cn_snapshot(ticker)
+    if market == "HK":
+        return _hk_snapshot(ticker)
     raise ValueError(f"unsupported market: {market!r}")
 
 

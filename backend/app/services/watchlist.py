@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-Market = Literal["US", "CN"]
+Market = Literal["US", "CN", "HK"]
 Mode = Literal["snapshot", "quick", "serenity", "debate"]
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"

@@ -13,16 +13,17 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-MarketFilter = Literal["ALL", "US", "CN"]
+MarketFilter = Literal["ALL", "US", "CN", "HK"]
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 SEED_PATH = DATA_DIR / "symbols_seed.json"
 CN_FULL_PATH = DATA_DIR / "symbols_cn_full.json"
+HK_FULL_PATH = DATA_DIR / "symbols_hk_full.json"
 
 
 class SymbolSuggestion(BaseModel):
     ticker: str
-    market: Literal["US", "CN"]
+    market: Literal["US", "CN", "HK"]
     name: str
     aliases: list[str] = []
 
@@ -34,6 +35,8 @@ def load_symbols() -> list[SymbolSuggestion]:
         raw.extend(json.loads(SEED_PATH.read_text(encoding="utf-8")))
     if CN_FULL_PATH.exists():
         raw.extend(json.loads(CN_FULL_PATH.read_text(encoding="utf-8")))
+    if HK_FULL_PATH.exists():
+        raw.extend(json.loads(HK_FULL_PATH.read_text(encoding="utf-8")))
 
     # De-dupe, with curated seed taking precedence over the full A-share cache
     # so aliases like "茅台" / "苹果" are preserved.
@@ -63,10 +66,17 @@ def search_symbols(q: str, market: MarketFilter = "ALL", limit: int = 8) -> list
         aliases = [a.lower() for a in s.aliases]
         hay = [ticker, name, *aliases]
 
+        plain_ticker = ticker.lstrip("0") or ticker
         if ticker == query:
             return 1000
+        if s.market == "HK" and plain_ticker == query:
+            return 940
         if ticker.startswith(query):
             return 900
+        if plain_ticker == query:
+            return 880
+        if s.market == "HK" and plain_ticker.startswith(query):
+            return 860
         if name == query:
             return 850
         if any(a == query for a in aliases):

@@ -71,7 +71,7 @@ export function StockInput({
   return (
     <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2 w-full">
       <div className="flex bg-surface border border-border rounded-lg overflow-hidden">
-        {(["US", "CN"] as Market[]).map((m) => (
+        {(["US", "CN", "HK"] as Market[]).map((m) => (
           <button
             key={m}
             type="button"
@@ -83,7 +83,7 @@ export function StockInput({
                 : "text-muted hover:text-heading hover:bg-border/40"
             )}
           >
-            {m === "US" ? t("input.market.us") : t("input.market.cn")}
+            {m === "US" ? t("input.market.us") : m === "CN" ? t("input.market.cn") : t("input.market.hk")}
           </button>
         ))}
       </div>
@@ -94,7 +94,7 @@ export function StockInput({
           value={ticker}
           onFocus={() => setOpen(suggestions.length > 0)}
           onChange={(e) => setTicker(e.target.value)}
-          placeholder={market === "US" ? t("input.placeholder.us") : t("input.placeholder.cn")}
+          placeholder={market === "US" ? t("input.placeholder.us") : market === "CN" ? t("input.placeholder.cn") : t("input.placeholder.hk")}
           spellCheck={false}
           className={cn(
             "w-full pl-10 pr-3 py-2 text-sm",

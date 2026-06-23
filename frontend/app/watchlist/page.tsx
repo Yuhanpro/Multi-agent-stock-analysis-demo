@@ -163,6 +163,7 @@ export default function WatchlistPage() {
           >
             <option value="US">US</option>
             <option value="CN">CN</option>
+            <option value="HK">HK</option>
           </select>
           <input
             value={form.note}

@@ -20,7 +20,7 @@ router = APIRouter()
 @router.get("/snapshot", response_model=Snapshot)
 def snapshot(
     ticker: str = Query(..., min_length=1, max_length=16, description="e.g. AAPL or 600519"),
-    market: Literal["US", "CN"] = Query("US"),
+    market: Literal["US", "CN", "HK"] = Query("US"),
 ) -> Snapshot:
     try:
         return get_snapshot(ticker, market)

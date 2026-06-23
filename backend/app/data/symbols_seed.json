@@ -33,5 +33,13 @@
   {"ticker":"300760","market":"CN","name":"迈瑞医疗","aliases":["迈瑞","医疗器械"]},
   {"ticker":"002230","market":"CN","name":"科大讯飞","aliases":["讯飞","AI","人工智能"]},
   {"ticker":"688981","market":"CN","name":"中芯国际","aliases":["SMIC","芯片","半导体"]},
-  {"ticker":"601012","market":"CN","name":"隆基绿能","aliases":["隆基","光伏"]}
+  {"ticker":"601012","market":"CN","name":"隆基绿能","aliases":["隆基","光伏"]},
+  {"ticker":"00700","market":"HK","name":"腾讯控股","aliases":["腾讯","Tencent","Tencent Holdings"]},
+  {"ticker":"09988","market":"HK","name":"阿里巴巴-W","aliases":["阿里","阿里巴巴","Alibaba","BABA"]},
+  {"ticker":"03690","market":"HK","name":"美团-W","aliases":["美团","Meituan"]},
+  {"ticker":"01810","market":"HK","name":"小米集团-W","aliases":["小米","Xiaomi"]},
+  {"ticker":"09888","market":"HK","name":"百度集团-SW","aliases":["百度","Baidu"]},
+  {"ticker":"09618","market":"HK","name":"京东集团-SW","aliases":["京东","JD"]},
+  {"ticker":"01299","market":"HK","name":"友邦保险","aliases":["友邦","AIA"]},
+  {"ticker":"02318","market":"HK","name":"中国平安","aliases":["平安","Ping An"]}
 ]

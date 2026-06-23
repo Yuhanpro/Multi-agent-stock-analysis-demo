@@ -32,8 +32,10 @@ const DICT = {
     // input
     "input.market.us":          "US Equities",
     "input.market.cn":          "CN A-Shares",
+    "input.market.hk":          "HK Stocks",
     "input.placeholder.us":     "AAPL, NVDA, TSLA…",
     "input.placeholder.cn":     "600519, 000001…",
+    "input.placeholder.hk":     "00700, 09988, 腾讯…",
     "input.submit":             "Analyze",
     "input.submit.loading":     "Loading…",
     // empty state
@@ -111,8 +113,10 @@ const DICT = {
     "mode.debate.hint":    "TradingAgents · 约 3-5 分钟",
     "input.market.us":          "美股",
     "input.market.cn":          "A 股",
+    "input.market.hk":          "港股",
     "input.placeholder.us":     "AAPL、NVDA、TSLA…",
     "input.placeholder.cn":     "600519、000001…",
+    "input.placeholder.hk":     "00700、09988、腾讯…",
     "input.submit":             "开始分析",
     "input.submit.loading":     "加载中…",
     "empty.hint":     "在上方输入股票代码。试试 AAPL、NVDA,或 600519(A 股)。",

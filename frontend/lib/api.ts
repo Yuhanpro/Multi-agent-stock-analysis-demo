@@ -3,7 +3,7 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
-export type Market = "US" | "CN";
+export type Market = "US" | "CN" | "HK";
 export type AnalysisMode = "snapshot" | "quick" | "serenity" | "debate";
 
 export interface OHLCV {
