@@ -137,7 +137,7 @@ export function SnapshotCard({ snapshot }: Props) {
       <div className="space-y-1 text-[10px] text-subtle font-mono">
         <div>{t("snap.source")}: {snapshot.source} · {ohlcv.length} {t("snap.bars")}{f.source_detail ? ` · ${f.source_detail}` : ""}</div>
         {groups.some((g) => g.title === (lang === "zh" ? "增长" : "Growth")) && (
-          <div>{lang === "zh" ? "口径:美股多为同比,港股为滚动增长;估值/盈利/质量为最新时点或最新报告期。" : "Basis: US growth is generally YoY; HK growth is rolling growth. Valuation/profitability/quality are latest point-in-time or latest reporting period."}</div>
+          <div>{lang === "zh" ? "口径:A股/美股增长为同比(A股取最新报告期),港股为滚动增长;估值/盈利/质量为最新时点或最新报告期。" : "Basis: CN/US growth is YoY (CN uses the latest reporting period); HK growth is rolling. Valuation/profitability/quality are latest point-in-time or latest reporting period."}</div>
         )}
       </div>
     </div>

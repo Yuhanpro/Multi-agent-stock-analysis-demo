@@ -165,6 +165,21 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-06-23 — A 股成长性指标补全
+
+交付内容:
+
+- **A 股营收/净利同比** —— `_cn_snapshot` 新增 `stock_financial_abstract` 数据源,补齐此前 A 股缺失的成长性字段:营业总收入、归母净利润,以及营业总收入同比增长率、归属母公司净利润同比增长率。前端"增长"区(营收增长 / 净利增长)对 A 股不再空白。
+- **口径一致性** —— 营收/净利及其同比从**同一报告期列**读取(最新非空期,通常为最新季度),保证数字与其同比口径一致;`source_detail` 标注所用报告期(如 `stock_financial_abstract (20260331)`)。
+- **eps 兜底取年报值** —— 当 EM 财务指标接口缺失时,用 `stock_financial_abstract` 的**最新年报(12-31)**每股收益兜底,避免把单季累计 EPS 当成滚动 EPS 显示(如茅台兜底为全年 65.66 而非 Q1 的 21.76)。
+- **数据源选型** —— 选 `stock_financial_abstract`(返回原始元 float)而非 `stock_financial_abstract_ths`(金额为 "6.28亿" 字符串,`_safe_float` 无法解析)。同比值为百分数,统一 `/100` 转 decimal。整段包在 try/except + `or` 合并里,接口不可用时静默降级,不影响既有字段。
+- **前端口径脚注更新** —— Snapshot 底部口径说明补上 A 股:"A股/美股增长为同比(A股取最新报告期),港股为滚动增长"。
+- **验证** —— 对 600519(茅台,消费)与 000001(平安银行,金融)实测提取逻辑:营收同比 +6.34% / +4.65%,净利同比 +1.47% / +3.03%,eps 取年报值正确,单位口径核对无误。
+
+阻塞项 / 遗留:
+
+- 本地这版 akshare 的 `stock_a_indicator_lg` 已移除、`stock_individual_info_em` / `stock_financial_analysis_indicator_em` 在本机撞 eastmoney SSL/代理报错(均被 try/except 兜住),导致本地无法跑完整 `_cn_snapshot`(`stock_zh_a_spot` 全市场下载也慢);需在国内 VPS 上复测 A 股完整快照的 PE/PB/行业等字段是否仍正常。
+
 ### 2026-06-17 — 迁移到 E 盘、GitHub work items、阿里云部署准备
 
 交付内容:

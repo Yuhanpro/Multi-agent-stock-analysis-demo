@@ -431,6 +431,55 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     except Exception as e:
         log.warning("akshare CN financial indicators failed for %s: %s", code, e)
 
+    # Growth (revenue / net income YoY) + absolute revenue/net income.
+    # stock_financial_abstract returns RAW yuan floats (no Chinese-unit strings,
+    # unlike stock_financial_abstract_ths) and carries 营业总收入增长率 /
+    # 归属母公司净利润增长率 as percent values. Read all four from the SAME
+    # report-period column so the figure and its YoY stay coherent. This also
+    # backstops eps when the EM analysis-indicator endpoint regresses.
+    try:
+        absd = ak.stock_financial_abstract(symbol=code)
+        if absd is not None and not absd.empty:
+            cols = list(absd.columns)
+            ind_col = cols[1]
+            date_cols = cols[2:]  # report periods, newest first
+            by_ind = {}
+            for _, r in absd.iterrows():
+                by_ind.setdefault(r[ind_col], r)  # first occurrence = 常用指标 section
+            rev_row = by_ind.get("营业总收入")
+            period = None
+            if rev_row is not None:
+                for d in date_cols:
+                    if _safe_float(rev_row.get(d)) is not None:
+                        period = d
+                        break
+            if period:
+                def _abs_val(name: str):
+                    row = by_ind.get(name)
+                    return _safe_float(row.get(period)) if row is not None else None
+
+                fundamentals.revenue = fundamentals.revenue or _abs_val("营业总收入")
+                fundamentals.net_income = fundamentals.net_income or _abs_val("归母净利润")
+                rev_g = _abs_val("营业总收入增长率")
+                ni_g = _abs_val("归属母公司净利润增长率")
+                if fundamentals.revenue_yoy is None and rev_g is not None:
+                    fundamentals.revenue_yoy = rev_g / 100.0
+                if fundamentals.net_income_yoy is None and ni_g is not None:
+                    fundamentals.net_income_yoy = ni_g / 100.0
+                # EPS backstop: prefer the latest annual (FY) figure so a single
+                # quarter's cumulative EPS is not shown as if it were trailing.
+                if fundamentals.eps is None:
+                    annual = next((d for d in date_cols if d.endswith("1231")), None)
+                    eps_row = by_ind.get("基本每股收益")
+                    if annual and eps_row is not None:
+                        fundamentals.eps = _safe_float(eps_row.get(annual))
+                tag = f"stock_financial_abstract ({period})"
+                fundamentals.source_detail = (
+                    f"{fundamentals.source_detail} + {tag}" if fundamentals.source_detail else tag
+                )
+    except Exception as e:
+        log.warning("akshare stock_financial_abstract failed for %s: %s", code, e)
+
     return Snapshot(
         ticker=code,
         market="CN",
