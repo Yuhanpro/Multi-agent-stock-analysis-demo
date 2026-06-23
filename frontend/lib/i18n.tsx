@@ -46,7 +46,7 @@ const DICT = {
     "snap.pb":            "P/B",
     "snap.dividend":      "Dividend",
     "snap.eps":           "EPS",
-    "snap.revenue_yoy":   "Revenue YoY",
+    "snap.revenue_yoy":   "Revenue Growth",
     "snap.bars":          "bars",
     "snap.source":        "source",
     // quick result
@@ -125,7 +125,7 @@ const DICT = {
     "snap.pb":            "市净率",
     "snap.dividend":      "股息率",
     "snap.eps":           "每股收益",
-    "snap.revenue_yoy":   "营收同比",
+    "snap.revenue_yoy":   "营收增长",
     "snap.bars":          "根 K 线",
     "snap.source":        "数据源",
     "quick.title":         "巴菲特速评",

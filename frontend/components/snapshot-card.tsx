@@ -9,7 +9,17 @@ import { cn, fmtNumber, fmtPct, fmtPrice } from "@/lib/format";
 
 interface Props { snapshot: Snapshot }
 
-type Stat = [string, string];
+type Stat = { label: string; value: string; present: boolean };
+
+function stat(label: string, raw: number | null | undefined, fmt: (v: number) => string): Stat {
+  return { label, value: raw == null || Number.isNaN(raw) ? "" : fmt(raw), present: raw != null && !Number.isNaN(raw) };
+}
+
+function compactGroups(groups: Array<{ title: string; stats: Stat[] }>) {
+  return groups
+    .map((g) => ({ ...g, stats: g.stats.filter((s) => s.present) }))
+    .filter((g) => g.stats.length > 0);
+}
 
 export function SnapshotCard({ snapshot }: Props) {
   const { t, lang } = useT();
@@ -20,24 +30,39 @@ export function SnapshotCard({ snapshot }: Props) {
 
   const chartData = useMemo(() => ohlcv.map((c) => ({ date: c.date.slice(5), close: c.close })), [ohlcv]);
 
-  const groups: Array<{ title: string; stats: Stat[] }> = [
+  const groups = compactGroups([
     {
       title: lang === "zh" ? "估值" : "Valuation",
-      stats: [[t("snap.marketcap"), fmtNumber(f.market_cap, 2)], [t("snap.pe"), fmtNumber(f.pe, 2)], [t("snap.pb"), fmtNumber(f.pb, 2)]],
+      stats: [
+        stat(t("snap.marketcap"), f.market_cap, (v) => fmtNumber(v, 2)),
+        stat(t("snap.pe"), f.pe, (v) => fmtNumber(v, 2)),
+        stat(t("snap.pb"), f.pb, (v) => fmtNumber(v, 2)),
+      ],
     },
     {
       title: lang === "zh" ? "盈利" : "Profitability",
-      stats: [[t("snap.eps"), fmtNumber(f.eps, 2)], ["ROE", fmtPct(f.roe)], ["ROA", fmtPct(f.roa)]],
+      stats: [
+        stat(t("snap.eps"), f.eps, (v) => fmtNumber(v, 2)),
+        stat("ROE", f.roe, fmtPct),
+        stat("ROA", f.roa, fmtPct),
+      ],
     },
     {
       title: lang === "zh" ? "增长" : "Growth",
-      stats: [[t("snap.revenue_yoy"), fmtPct(f.revenue_yoy)], [lang === "zh" ? "净利同比" : "Net Income YoY", fmtPct(f.net_income_yoy)]],
+      stats: [
+        stat(t("snap.revenue_yoy"), f.revenue_yoy, fmtPct),
+        stat(lang === "zh" ? "净利增长" : "Net Income Growth", f.net_income_yoy, fmtPct),
+      ],
     },
     {
       title: lang === "zh" ? "质量" : "Quality",
-      stats: [[lang === "zh" ? "毛利率" : "Gross Margin", fmtPct(f.gross_margin)], [lang === "zh" ? "净利率" : "Net Margin", fmtPct(f.net_margin)], [lang === "zh" ? "负债率" : "Debt/Assets", fmtPct(f.debt_asset_ratio)]],
+      stats: [
+        stat(lang === "zh" ? "毛利率" : "Gross Margin", f.gross_margin, fmtPct),
+        stat(lang === "zh" ? "净利率" : "Net Margin", f.net_margin, fmtPct),
+        stat(lang === "zh" ? "负债率" : "Debt/Assets", f.debt_asset_ratio, fmtPct),
+      ],
     },
-  ];
+  ]);
 
   return (
     <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
@@ -75,24 +100,33 @@ export function SnapshotCard({ snapshot }: Props) {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        {groups.map((g) => (
-          <div key={g.title} className="rounded-lg border border-border/70 bg-bg/25 p-3">
-            <div className="mb-2 text-[11px] font-mono uppercase tracking-wide text-muted">{g.title}</div>
-            <div className="space-y-1.5">
-              {g.stats.map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted">{label}</span>
-                  <span className="text-sm font-medium tabular-nums text-body">{value}</span>
-                </div>
-              ))}
+      {groups.length > 0 ? (
+        <div className="grid gap-3 md:grid-cols-4">
+          {groups.map((g) => (
+            <div key={g.title} className="rounded-lg border border-border/70 bg-bg/25 p-3">
+              <div className="mb-2 text-[11px] font-mono uppercase tracking-wide text-muted">{g.title}</div>
+              <div className="space-y-1.5">
+                {g.stats.map((s) => (
+                  <div key={s.label} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted">{s.label}</span>
+                    <span className="text-sm font-medium tabular-nums text-body">{s.value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border/70 bg-bg/25 p-3 text-xs text-muted">
+          {lang === "zh" ? "暂无可用估值/财务指标,仅显示价格与 K 线。" : "No valuation/fundamental fields available yet; showing price and OHLCV only."}
+        </div>
+      )}
 
-      <div className="text-[10px] text-subtle font-mono">
-        {t("snap.source")}: {snapshot.source} · {ohlcv.length} {t("snap.bars")}{f.source_detail ? ` · ${f.source_detail}` : ""}
+      <div className="space-y-1 text-[10px] text-subtle font-mono">
+        <div>{t("snap.source")}: {snapshot.source} · {ohlcv.length} {t("snap.bars")}{f.source_detail ? ` · ${f.source_detail}` : ""}</div>
+        {groups.some((g) => g.title === (lang === "zh" ? "增长" : "Growth")) && (
+          <div>{lang === "zh" ? "口径:美股多为同比,港股为滚动增长;估值/盈利/质量为最新时点或最新报告期。" : "Basis: US growth is generally YoY; HK growth is rolling growth. Valuation/profitability/quality are latest point-in-time or latest reporting period."}</div>
+        )}
       </div>
     </div>
   );
