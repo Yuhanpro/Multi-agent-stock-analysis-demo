@@ -23,8 +23,17 @@ export interface Fundamentals {
   pb: number | null;
   dividend_yield: number | null;
   revenue_yoy: number | null;
+  net_income_yoy: number | null;
   eps: number | null;
+  revenue: number | null;
+  net_income: number | null;
+  roe: number | null;
+  roa: number | null;
+  gross_margin: number | null;
+  net_margin: number | null;
+  debt_asset_ratio: number | null;
   currency: string | null;
+  source_detail: string | null;
 }
 
 export interface Snapshot {

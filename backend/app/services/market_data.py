@@ -37,8 +37,17 @@ class Fundamentals(BaseModel):
     pb: float | None = None
     dividend_yield: float | None = None  # decimal, e.g. 0.012
     revenue_yoy: float | None = None  # decimal, e.g. 0.18
+    net_income_yoy: float | None = None
     eps: float | None = None
+    revenue: float | None = None
+    net_income: float | None = None
+    roe: float | None = None  # decimal
+    roa: float | None = None  # decimal
+    gross_margin: float | None = None  # decimal
+    net_margin: float | None = None  # decimal
+    debt_asset_ratio: float | None = None  # decimal
     currency: str | None = None
+    source_detail: str | None = None
 
 
 class Snapshot(BaseModel):
@@ -49,6 +58,35 @@ class Snapshot(BaseModel):
     ohlcv: list[OHLCV]
     fundamentals: Fundamentals
     source: str  # "yfinance" | "akshare" | "yfinance+fallback"
+
+
+def _pct(v) -> float | None:
+    f = _safe_float(v)
+    if f is None:
+        return None
+    return f / 100.0
+
+
+def _latest_row(df):
+    if df is None or df.empty:
+        return None
+    return df.iloc[0]
+
+
+def _symbol_name(ticker: str, market: Market) -> str | None:
+    try:
+        from app.services.symbol_search import load_symbols
+        key = ticker.upper()
+        if market == "CN":
+            key = ticker.zfill(6)
+        elif market == "HK":
+            key = ticker.upper().replace("HK", "").zfill(5)
+        for s in load_symbols():
+            if s.market == market and s.ticker == key:
+                return s.name
+    except Exception:
+        return None
+    return None
 
 
 # ---------- US (yfinance) ---------------------------------------------------
@@ -113,7 +151,14 @@ def _us_snapshot_yfinance(ticker: str) -> Snapshot:
         dividend_yield=_safe_float(info.get("dividendYield")),
         revenue_yoy=_safe_float(info.get("revenueGrowth")),
         eps=_safe_float(info.get("trailingEps")),
+        revenue=_safe_float(info.get("totalRevenue")),
+        net_income=_safe_float(info.get("netIncomeToCommon")),
+        roe=_safe_float(info.get("returnOnEquity")),
+        roa=_safe_float(info.get("returnOnAssets")),
+        gross_margin=_safe_float(info.get("grossMargins")),
+        net_margin=_safe_float(info.get("profitMargins")),
         currency=info.get("currency", "USD"),
+        source_detail="yfinance info",
     )
 
     return Snapshot(
@@ -157,9 +202,30 @@ def _us_snapshot_akshare(ticker: str) -> Snapshot:
     change_pct = (last_close - prev_close) / prev_close if prev_close else None
 
     fundamentals = Fundamentals(
-        name=symbol,
+        name=_symbol_name(symbol, "US") or symbol,
         currency="USD",
+        source_detail="akshare stock_us_daily",
     )
+    try:
+        fin = ak.stock_financial_us_analysis_indicator_em(symbol=symbol)
+        row = _latest_row(fin)
+        if row is not None:
+            fundamentals.name = str(row.get("SECURITY_NAME_ABBR") or symbol)
+            fundamentals.eps = _safe_float(row.get("BASIC_EPS"))
+            fundamentals.revenue = _safe_float(row.get("OPERATE_INCOME"))
+            fundamentals.revenue_yoy = _pct(row.get("OPERATE_INCOME_YOY"))
+            fundamentals.net_income = _safe_float(row.get("PARENT_HOLDER_NETPROFIT"))
+            fundamentals.net_income_yoy = _pct(row.get("PARENT_HOLDER_NETPROFIT_YOY"))
+            fundamentals.gross_margin = _pct(row.get("GROSS_PROFIT_RATIO"))
+            fundamentals.net_margin = _pct(row.get("NET_PROFIT_RATIO"))
+            fundamentals.roe = _pct(row.get("ROE_AVG"))
+            fundamentals.roa = _pct(row.get("ROA"))
+            fundamentals.debt_asset_ratio = _pct(row.get("DEBT_ASSET_RATIO"))
+            if fundamentals.eps and last_close:
+                fundamentals.pe = fundamentals.pe or (last_close / fundamentals.eps)
+            fundamentals.source_detail = "akshare stock_us_daily + stock_financial_us_analysis_indicator_em"
+    except Exception as e:
+        log.warning("akshare US financial indicators failed for %s: %s", symbol, e)
 
     return Snapshot(
         ticker=symbol,
@@ -182,8 +248,23 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     end = datetime.utcnow().date()
     start = end - timedelta(days=120)
 
-    source = "akshare"
+    # Prefer stock_zh_a_daily on Aliyun: it is more stable than the EastMoney
+    # stock_zh_a_hist endpoint and includes outstanding_share, which lets us
+    # compute market cap even when valuation APIs are unavailable.
+    source = "akshare-daily"
+    prefix = "sh" if code.startswith("6") else "sz"
     try:
+        hist = ak.stock_zh_a_daily(
+            symbol=f"{prefix}{code}",
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+            adjust="",
+        )
+    except Exception as e:
+        log.warning("akshare stock_zh_a_daily failed for %s; trying stock_zh_a_hist: %s", code, e)
+        hist = None
+
+    if hist is None or hist.empty:
         hist = ak.stock_zh_a_hist(
             symbol=code,
             period="daily",
@@ -191,21 +272,7 @@ def _cn_snapshot(ticker: str) -> Snapshot:
             end_date=end.strftime("%Y%m%d"),
             adjust="",
         )
-    except Exception as e:
-        log.warning("akshare stock_zh_a_hist failed for %s; trying stock_zh_a_daily: %s", code, e)
-        hist = None
-
-    if hist is None or hist.empty:
-        # Fallback: stock_zh_a_daily uses English columns and has been more
-        # stable on the Aliyun light server. It expects sh/sz prefix.
-        prefix = "sh" if code.startswith("6") else "sz"
-        hist = ak.stock_zh_a_daily(
-            symbol=f"{prefix}{code}",
-            start_date=start.strftime("%Y%m%d"),
-            end_date=end.strftime("%Y%m%d"),
-            adjust="",
-        )
-        source = "akshare-daily"
+        source = "akshare"
     if hist is None or hist.empty:
         raise ValueError(f"akshare returned no history for {code}")
 
@@ -225,6 +292,7 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     c_high = col("最高", "high")
     c_low = col("最低", "low")
     c_vol = col("成交量", "volume")
+    c_outstanding = cols.get("outstanding_share")
 
     ohlcv = [
         OHLCV(
@@ -246,7 +314,16 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     prev_close = ohlcv[-2].close if len(ohlcv) > 1 else last_close
     change_pct = (last_close - prev_close) / prev_close if prev_close else None
 
-    fundamentals = Fundamentals(currency="CNY")
+    fundamentals = Fundamentals(name=_symbol_name(code, "CN"), currency="CNY", source_detail=source)
+    if c_outstanding:
+        try:
+            shares = _safe_float(hist.iloc[-1].get(c_outstanding))
+            if shares and last_close:
+                fundamentals.market_cap = last_close * shares
+                fundamentals.source_detail = f"{source} (market cap from outstanding_share)"
+        except Exception as e:
+            log.warning("CN market cap from outstanding_share failed for %s: %s", code, e)
+
     try:
         info = ak.stock_individual_info_em(symbol=code)
         if info is not None and not info.empty:
@@ -263,12 +340,30 @@ def _cn_snapshot(ticker: str) -> Snapshot:
             row = ind.iloc[-1]
             fundamentals.pe = _safe_float(row.get("pe_ttm"))
             fundamentals.pb = _safe_float(row.get("pb"))
+            fundamentals.market_cap = fundamentals.market_cap or _safe_float(row.get("total_mv")) or _safe_float(row.get("total_market_value"))
             fundamentals.dividend_yield = _safe_float(row.get("dv_ratio"))
             if fundamentals.dividend_yield is not None:
                 # akshare returns percent; normalize to decimal
                 fundamentals.dividend_yield = fundamentals.dividend_yield / 100.0
     except Exception as e:
         log.warning("akshare stock_a_indicator_lg failed for %s: %s", code, e)
+
+    try:
+        fin = ak.stock_financial_analysis_indicator_em(symbol=code)
+        row = _latest_row(fin)
+        if row is not None:
+            # akshare columns vary over time; read opportunistically.
+            fundamentals.eps = fundamentals.eps or _safe_float(row.get("每股收益") or row.get("摊薄每股收益(元)"))
+            fundamentals.roe = fundamentals.roe or _pct(row.get("净资产收益率") or row.get("加权净资产收益率(%)"))
+            fundamentals.gross_margin = fundamentals.gross_margin or _pct(row.get("销售毛利率") or row.get("销售毛利率(%)"))
+            fundamentals.net_margin = fundamentals.net_margin or _pct(row.get("销售净利率") or row.get("销售净利率(%)"))
+            fundamentals.debt_asset_ratio = fundamentals.debt_asset_ratio or _pct(row.get("资产负债率") or row.get("资产负债率(%)"))
+            if fundamentals.source_detail:
+                fundamentals.source_detail += " + stock_financial_analysis_indicator_em"
+            else:
+                fundamentals.source_detail = "stock_financial_analysis_indicator_em"
+    except Exception as e:
+        log.warning("akshare CN financial indicators failed for %s: %s", code, e)
 
     return Snapshot(
         ticker=code,
@@ -313,9 +408,38 @@ def _hk_snapshot(ticker: str) -> Snapshot:
     change_pct = (last_close - prev_close) / prev_close if prev_close else None
 
     fundamentals = Fundamentals(
-        name=code,
+        name=_symbol_name(code, "HK") or code,
         currency="HKD",
+        source_detail="akshare stock_hk_daily",
     )
+    try:
+        fin = ak.stock_hk_financial_indicator_em(symbol=code)
+        row = _latest_row(fin)
+        if row is not None:
+            fundamentals.eps = _safe_float(row.get("基本每股收益(元)"))
+            fundamentals.pb = _safe_float(row.get("市净率"))
+            fundamentals.pe = _safe_float(row.get("市盈率"))
+            fundamentals.market_cap = _safe_float(row.get("总市值(港元)")) or _safe_float(row.get("港股市值(港元)"))
+            fundamentals.dividend_yield = _pct(row.get("股息率TTM(%)"))
+            fundamentals.revenue = _safe_float(row.get("营业总收入"))
+            fundamentals.revenue_yoy = _pct(row.get("营业总收入滚动环比增长(%)"))
+            fundamentals.net_income = _safe_float(row.get("净利润"))
+            fundamentals.net_income_yoy = _pct(row.get("净利润滚动环比增长(%)"))
+            fundamentals.roe = _pct(row.get("股东权益回报率(%)"))
+            fundamentals.roa = _pct(row.get("总资产回报率(%)"))
+            fundamentals.source_detail = "akshare stock_hk_daily + stock_hk_financial_indicator_em"
+    except Exception as e:
+        log.warning("akshare HK financial indicators failed for %s: %s", code, e)
+
+    try:
+        profile = ak.stock_hk_company_profile_em(symbol=code)
+        row = _latest_row(profile)
+        if row is not None:
+            fundamentals.name = str(row.get("公司名称") or fundamentals.name)
+            fundamentals.sector = str(row.get("所属行业") or fundamentals.sector or "") or None
+            fundamentals.source_detail = (fundamentals.source_detail or "") + " + stock_hk_company_profile_em"
+    except Exception as e:
+        log.warning("akshare HK company profile failed for %s: %s", code, e)
 
     return Snapshot(
         ticker=code,
