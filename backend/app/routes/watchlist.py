@@ -1,12 +1,19 @@
-"""Watchlist CRUD routes."""
+"""Watchlist CRUD routes (per authenticated user)."""
 from __future__ import annotations
 
-from typing import Literal
-
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.services.watchlist import Market, Mode, WatchlistItem, delete_item, list_items, patch_item, upsert_item
+from app.services.auth import User, get_current_user
+from app.services.watchlist import (
+    Market,
+    Mode,
+    WatchlistItem,
+    delete_item,
+    list_items,
+    patch_item,
+    upsert_item,
+)
 
 router = APIRouter()
 
@@ -26,13 +33,13 @@ class WatchlistPatch(BaseModel):
 
 
 @router.get("/watchlist", response_model=list[WatchlistItem])
-def get_watchlist() -> list[WatchlistItem]:
-    return list_items()
+def get_watchlist(user: User = Depends(get_current_user)) -> list[WatchlistItem]:
+    return list_items(user.id)
 
 
 @router.post("/watchlist", response_model=list[WatchlistItem])
-def post_watchlist(item: WatchlistUpsert) -> list[WatchlistItem]:
-    return upsert_item(WatchlistItem.model_validate(item.model_dump()))
+def post_watchlist(item: WatchlistUpsert, user: User = Depends(get_current_user)) -> list[WatchlistItem]:
+    return upsert_item(user.id, WatchlistItem.model_validate(item.model_dump()))
 
 
 @router.patch("/watchlist/{ticker}", response_model=list[WatchlistItem])
@@ -40,9 +47,10 @@ def patch_watchlist(
     ticker: str,
     patch: WatchlistPatch,
     market: Market = Query("US"),
+    user: User = Depends(get_current_user),
 ) -> list[WatchlistItem]:
     try:
-        return patch_item(ticker, market, patch.model_dump(exclude_unset=True))
+        return patch_item(user.id, ticker, market, patch.model_dump(exclude_unset=True))
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -51,8 +59,9 @@ def patch_watchlist(
 def delete_watchlist(
     ticker: str,
     market: Market = Query("US"),
+    user: User = Depends(get_current_user),
 ) -> list[WatchlistItem]:
     try:
-        return delete_item(ticker, market)
+        return delete_item(user.id, ticker, market)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

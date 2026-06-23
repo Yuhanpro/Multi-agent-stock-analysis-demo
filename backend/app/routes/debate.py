@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import budget
+from app.services import auth, budget, reports
 from app.services.market_data import get_snapshot
 from app.services.rate_limit import check_and_count
 from app.services.tradingagents_runner import sse_event, stream_debate
@@ -20,6 +20,26 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 ALLOWED_ANALYSTS = {"market", "news", "fundamentals", "social"}
+
+
+def _assemble_debate_md(
+    ticker: str,
+    language: str,
+    final_decision: str,
+    trader_plan: str,
+    agent_reports: list[tuple[str, str]],
+) -> str:
+    """Flatten the streamed debate into a single markdown document for storage."""
+    zh = language == "zh"
+    parts = [f"# {ticker} — {'多智能体辩论报告' if zh else 'Multi-Agent Debate Report'}"]
+    if final_decision:
+        parts.append(f"## {'最终决策' if zh else 'Final Decision'}\n\n{final_decision}")
+    if trader_plan:
+        parts.append(f"## {'交易计划' if zh else 'Trader Plan'}\n\n{trader_plan}")
+    for label, report in agent_reports:
+        if report:
+            parts.append(f"## {label}\n\n{report}")
+    return "\n\n".join(parts)
 
 
 class DebateRequest(BaseModel):
@@ -54,6 +74,9 @@ async def debate(request: Request, req: DebateRequest) -> EventSourceResponse:
     check_and_count(request, scope="debate", limit=settings.rate_limit_debate)
     budget.assert_within_budget()
 
+    # Logged-in users get the debate persisted to history (best-effort).
+    user = auth.user_from_request(request)
+
     async def event_gen():
         # Push the snapshot first so the frontend can render the chart while
         # TradingAgents spins up.
@@ -64,6 +87,9 @@ async def debate(request: Request, req: DebateRequest) -> EventSourceResponse:
         # and quick_think_llm=v4-flash, ~10-15 LLM calls per run lands around
         # $0.25; tune via env var if real spend drifts.
         flat_cost = float(getenv("TRADINGAGENTS_DEBATE_COST_USD", "0.25"))
+        agent_reports: list[tuple[str, str]] = []
+        final_decision = ""
+        trader_plan = ""
         try:
             async for event_name, payload in stream_debate(
                 ticker=req.ticker,
@@ -71,10 +97,33 @@ async def debate(request: Request, req: DebateRequest) -> EventSourceResponse:
                 analysts=req.analysts,
                 language=req.language,
             ):
-                if event_name == "done":
+                if event_name == "agent_complete":
+                    agent_reports.append((payload.get("label", ""), payload.get("report", "")))
+                elif event_name == "final":
+                    final_decision = payload.get("decision", "") or ""
+                    trader_plan = payload.get("trader_plan", "") or ""
+                elif event_name == "done":
                     new_total = budget.add_cost(flat_cost)
                     payload["est_cost_usd"] = flat_cost
                     payload["budget_today_usd"] = round(new_total, 6)
+                    if user and (final_decision or agent_reports):
+                        try:
+                            content = _assemble_debate_md(
+                                req.ticker, req.language, final_decision, trader_plan, agent_reports
+                            )
+                            meta = reports.save_report(
+                                user.id,
+                                ticker=req.ticker,
+                                market=req.market,
+                                mode="debate",
+                                language=req.language,
+                                content=content,
+                                decision=reports.extract_signal(final_decision),
+                                cost_usd=flat_cost,
+                            )
+                            payload["saved_report_id"] = meta.id
+                        except Exception:
+                            log.exception("save debate report failed")
                 yield sse_event(event_name, payload)
         except Exception as e:
             log.exception("debate stream failed")

@@ -5,13 +5,19 @@ Read once at startup; treat as immutable.
 from __future__ import annotations
 
 import os
+import secrets
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 # Load .env from backend/ if present (no-op when running on Railway with real env)
 load_dotenv()
+
+# backend/data — shared by the SQLite DB, the (legacy) watchlist JSON, and the
+# persisted JWT secret.
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 # The Aliyun light server used for Stage A has OpenClaw's proxy variables in
 # /etc/profile.d/proxy.sh (HTTP_PROXY=http://127.0.0.1:7890,
@@ -31,6 +37,28 @@ def _split_csv(raw: str | None, default: list[str]) -> list[str]:
     return [s.strip() for s in raw.split(",") if s.strip()]
 
 
+def _resolve_jwt_secret() -> str:
+    """JWT signing secret. Prefer env; otherwise persist a generated one to
+    data/.jwt_secret so tokens survive restarts (a fresh random per boot would
+    invalidate every session on every deploy)."""
+    env = os.getenv("JWT_SECRET")
+    if env:
+        return env
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    secret_file = DATA_DIR / ".jwt_secret"
+    if secret_file.exists():
+        val = secret_file.read_text(encoding="utf-8").strip()
+        if val:
+            return val
+    val = secrets.token_hex(32)
+    secret_file.write_text(val, encoding="utf-8")
+    try:
+        secret_file.chmod(0o600)
+    except OSError:
+        pass
+    return val
+
+
 @dataclass(frozen=True)
 class Settings:
     deepseek_api_key: str
@@ -42,6 +70,8 @@ class Settings:
     cors_origins: list[str]
     deep_think_llm: str
     quick_think_llm: str
+    db_path: str
+    jwt_secret: str
 
     @property
     def has_redis(self) -> bool:
@@ -65,4 +95,6 @@ def get_settings() -> Settings:
         ),
         deep_think_llm=os.getenv("DEEP_THINK_LLM", "deepseek-v4-pro"),
         quick_think_llm=os.getenv("QUICK_THINK_LLM", "deepseek-v4-flash"),
+        db_path=os.getenv("DB_PATH", str(DATA_DIR / "stock-web.db")),
+        jwt_secret=_resolve_jwt_secret(),
     )

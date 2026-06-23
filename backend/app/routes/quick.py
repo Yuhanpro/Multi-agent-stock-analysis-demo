@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import budget
+from app.services import auth, budget, reports
 from app.services.market_data import get_snapshot
 from app.services.rate_limit import check_and_count
 from app.services.skill_runner import sse_event, stream_quick
@@ -47,10 +47,14 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
     # Budget gate — cheaper than starting the SSE stream and aborting.
     budget.assert_within_budget()
 
+    # Logged-in users get their run persisted to history (best-effort).
+    user = auth.user_from_request(request)
+
     async def event_gen():
         # Send the snapshot up front so the frontend can render the chart
         # immediately, in parallel with the LLM streaming.
         yield sse_event("snapshot", snapshot.model_dump())
+        chunks: list[str] = []
         try:
             # Quick is one LLM call against a 158k-char system prompt — Flash
             # is the right tier here, keeps cost ~3x lower than Pro while the
@@ -62,11 +66,27 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
                 language=req.language,
                 model=settings.quick_think_llm,
             ):
+                if event_name == "token":
+                    chunks.append(payload.get("text", ""))
                 # Charge the daily budget when the run finishes.
                 if event_name == "done":
                     cost = float(payload.get("cost_usd", 0) or 0)
                     new_total = budget.add_cost(cost)
                     payload["budget_today_usd"] = round(new_total, 6)
+                    if user and chunks:
+                        try:
+                            meta = reports.save_report(
+                                user.id,
+                                ticker=req.ticker,
+                                market=req.market,
+                                mode="serenity" if req.skill == "serenity" else "quick",
+                                language=req.language,
+                                content="".join(chunks),
+                                cost_usd=cost,
+                            )
+                            payload["saved_report_id"] = meta.id
+                        except Exception:
+                            log.exception("save quick report failed")
                 yield sse_event(event_name, payload)
         except Exception as e:
             log.exception("quick stream failed")

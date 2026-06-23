@@ -7,8 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routes import debate, quick, snapshot, symbol_search, watchlist
-from app.services import budget
+from app.routes import auth, debate, quick, reports, snapshot, symbol_search, watchlist
+from app.services import budget, db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -29,10 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+db.init_db()
+
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(snapshot.router, prefix="/api", tags=["snapshot"])
 app.include_router(quick.router, prefix="/api", tags=["quick"])
 app.include_router(debate.router, prefix="/api", tags=["debate"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
+app.include_router(reports.router, prefix="/api", tags=["reports"])
 app.include_router(symbol_search.router, prefix="/api", tags=["symbol-search"])
 
 

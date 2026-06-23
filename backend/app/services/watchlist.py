@@ -1,24 +1,20 @@
-"""Watchlist persistence.
+"""Per-user watchlist persistence (SQLite).
 
-Small JSON-file store for the Stage-1 watchlist MVP. This deliberately avoids a
-DB until we have history/report storage. The file lives under backend/data/ and
-is safe for one uvicorn worker (our deployment uses workers=1).
+Previously a single global JSON file; now keyed by user_id in the shared SQLite
+DB so each account has its own list. The legacy backend/data/watchlist.json is
+no longer read.
 """
 from __future__ import annotations
 
 import json
-import threading
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.services import db
+
 Market = Literal["US", "CN", "HK"]
 Mode = Literal["snapshot", "quick", "serenity", "debate"]
-
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-WATCHLIST_PATH = DATA_DIR / "watchlist.json"
-_lock = threading.Lock()
 
 
 class WatchlistItem(BaseModel):
@@ -43,68 +39,59 @@ class WatchlistItem(BaseModel):
         return seen or ["snapshot"]
 
 
-def _ensure_file() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not WATCHLIST_PATH.exists():
-        WATCHLIST_PATH.write_text("[]\n", encoding="utf-8")
+def _row_to_item(row) -> WatchlistItem:
+    return WatchlistItem(
+        ticker=row["ticker"],
+        market=row["market"],
+        enabled=bool(row["enabled"]),
+        modes=json.loads(row["modes"] or '["snapshot"]'),
+        note=row["note"] or "",
+    )
 
 
-def list_items() -> list[WatchlistItem]:
-    with _lock:
-        _ensure_file()
-        raw = json.loads(WATCHLIST_PATH.read_text(encoding="utf-8") or "[]")
-        return [WatchlistItem.model_validate(x) for x in raw]
+def list_items(user_id: int) -> list[WatchlistItem]:
+    rows = db.query_all(
+        "SELECT * FROM watchlist WHERE user_id = ? ORDER BY enabled DESC, market, ticker",
+        (user_id,),
+    )
+    return [_row_to_item(r) for r in rows]
 
 
-def save_items(items: list[WatchlistItem]) -> list[WatchlistItem]:
-    with _lock:
-        _ensure_file()
-        # stable order: enabled first, then market, then ticker
-        items = sorted(items, key=lambda x: (not x.enabled, x.market, x.ticker))
-        WATCHLIST_PATH.write_text(
-            json.dumps([x.model_dump() for x in items], ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        return items
+def upsert_item(user_id: int, item: WatchlistItem) -> list[WatchlistItem]:
+    db.execute(
+        """INSERT INTO watchlist (user_id, ticker, market, enabled, modes, note)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, ticker, market) DO UPDATE SET
+               enabled = excluded.enabled,
+               modes   = excluded.modes,
+               note    = excluded.note""",
+        (user_id, item.ticker, item.market, int(item.enabled),
+         json.dumps(item.modes, ensure_ascii=False), item.note),
+    )
+    return list_items(user_id)
 
 
-def upsert_item(item: WatchlistItem) -> list[WatchlistItem]:
-    items = list_items()
-    replaced = False
-    next_items: list[WatchlistItem] = []
-    for existing in items:
-        if existing.ticker == item.ticker and existing.market == item.market:
-            next_items.append(item)
-            replaced = True
-        else:
-            next_items.append(existing)
-    if not replaced:
-        next_items.append(item)
-    return save_items(next_items)
-
-
-def patch_item(ticker: str, market: Market, patch: dict) -> list[WatchlistItem]:
+def patch_item(user_id: int, ticker: str, market: Market, patch: dict) -> list[WatchlistItem]:
     ticker = ticker.strip().upper()
-    items = list_items()
-    next_items: list[WatchlistItem] = []
-    found = False
-    for existing in items:
-        if existing.ticker == ticker and existing.market == market:
-            found = True
-            data = existing.model_dump()
-            data.update({k: v for k, v in patch.items() if v is not None})
-            next_items.append(WatchlistItem.model_validate(data))
-        else:
-            next_items.append(existing)
-    if not found:
+    row = db.query_one(
+        "SELECT * FROM watchlist WHERE user_id = ? AND ticker = ? AND market = ?",
+        (user_id, ticker, market),
+    )
+    if row is None:
         raise KeyError(f"watchlist item not found: {ticker}/{market}")
-    return save_items(next_items)
+    current = _row_to_item(row)
+    data = current.model_dump()
+    data.update({k: v for k, v in patch.items() if v is not None})
+    item = WatchlistItem.model_validate(data)
+    return upsert_item(user_id, item)
 
 
-def delete_item(ticker: str, market: Market) -> list[WatchlistItem]:
+def delete_item(user_id: int, ticker: str, market: Market) -> list[WatchlistItem]:
     ticker = ticker.strip().upper()
-    items = list_items()
-    next_items = [x for x in items if not (x.ticker == ticker and x.market == market)]
-    if len(next_items) == len(items):
+    cur = db.execute(
+        "DELETE FROM watchlist WHERE user_id = ? AND ticker = ? AND market = ?",
+        (user_id, ticker, market),
+    )
+    if cur.rowcount == 0:
         raise KeyError(f"watchlist item not found: {ticker}/{market}")
-    return save_items(next_items)
+    return list_items(user_id)
