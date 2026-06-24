@@ -227,8 +227,11 @@ async def stream_quick(
                 "1. 成本价只是背景信息,**决策必须基于公司质地、当前估值与前瞻风险**,而不是买入价。\n"
                 "2. **不要以'回本'为目标**——'套牢了再拿拿'是典型的损失厌恶/锚定偏差。\n"
                 "3. 若用户的处境暗示其可能因亏损而非理性持有,请**明确指出这一偏差并纠正**。\n"
-                "4. 把'前瞻投资逻辑'与'用户当前盈亏处境'分开讲清楚。\n"
-                "按 Standard Output Format 输出,并在结论处突出针对该持仓的具体动作建议。\n"
+                "4. 把'前瞻投资逻辑'与'用户当前盈亏处境'分开讲清楚。\n\n"
+                "**输出要求**:在报告**最开头**先单独写一节 `## 持仓建议`,包含:"
+                "① 明确动作(加仓 / 持有 / 减仓 / 清仓)之一;② 一句话核心理由(基于前瞻价值,而非成本);"
+                "③ 是否存在'为回本而持有'的锚定 / 损失厌恶风险(有则直接点破)。"
+                "之后再按 Standard Output Format 展开完整深度分析。\n"
             )
         else:
             diag = (
@@ -239,8 +242,11 @@ async def stream_quick(
                 "valuation and forward risk, NOT the entry price.\n"
                 "2. Do NOT aim to 'break even' — holding a loser to recover is textbook loss-aversion / anchoring.\n"
                 "3. If the user's situation suggests holding irrationally because of a loss, call out that bias and correct it.\n"
-                "4. Separate the forward investment thesis from the user's current P/L situation.\n"
-                "Use the Standard Output Format and make the position action explicit in the conclusion.\n"
+                "4. Separate the forward investment thesis from the user's current P/L situation.\n\n"
+                "**Output requirement**: START the report with a dedicated `## Position Recommendation` "
+                "section containing: (1) one action (ADD / HOLD / TRIM / SELL); (2) a one-line core reason "
+                "(based on forward value, not cost); (3) whether there is a 'holding to break even' "
+                "anchoring / loss-aversion risk (call it out if so). THEN continue with the full Standard Output Format.\n"
             )
         if user_question:
             diag += f"\n用户补充问题 / extra question: {user_question.strip()}\n"
