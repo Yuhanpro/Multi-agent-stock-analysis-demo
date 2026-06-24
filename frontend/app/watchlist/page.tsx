@@ -17,11 +17,14 @@ import {
 import { companyShortName } from "@/lib/company-names";
 import { cn } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth";
+import { LoginPrompt } from "@/components/auth-widget";
 
 const MODE_OPTIONS: AnalysisMode[] = ["snapshot", "quick", "serenity", "debate"];
 
 export default function WatchlistPage() {
   const { t } = useT();
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +39,10 @@ export default function WatchlistPage() {
   const [suggestOpen, setSuggestOpen] = useState(false);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    if (user) refresh();
+    else if (!authLoading) setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading]);
 
   useEffect(() => {
     const q = form.ticker.trim();
@@ -124,6 +129,10 @@ export default function WatchlistPage() {
         </div>
       </header>
 
+      {!authLoading && !user ? (
+        <LoginPrompt />
+      ) : (
+      <>
       <section className="mt-6 rounded-xl border border-border bg-surface p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_120px_1.4fr_auto]">
           <div className="relative">
@@ -213,6 +222,8 @@ export default function WatchlistPage() {
           </div>
         )}
       </section>
+      </>
+      )}
     </main>
   );
 }

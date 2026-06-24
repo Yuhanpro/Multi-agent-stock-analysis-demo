@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { I18nProvider } from "@/lib/i18n";
+import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { ThemeEditor } from "@/components/theme-editor";
+import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "stock-web — multi-agent stock analysis",
+  title: "stock-web - multi-agent stock analysis",
   description:
     "Run TradingAgents debate or a Buffett-style single-agent review on any ticker. Powered by DeepSeek.",
 };
@@ -20,8 +22,10 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <ThemeProvider>
           <I18nProvider>
-            {children}
-            <ThemeEditor />
+            <AuthProvider>
+              <AppShell>{children}</AppShell>
+              <ThemeEditor />
+            </AuthProvider>
           </I18nProvider>
         </ThemeProvider>
       </body>

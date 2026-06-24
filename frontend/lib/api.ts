@@ -1,5 +1,7 @@
 // API base URL for the FastAPI backend. Defaults to localhost:8000 for dev;
 // override with NEXT_PUBLIC_API_BASE in .env.local or at build time.
+import { authHeaders } from "./token";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -111,14 +113,14 @@ export async function searchSymbols(
 }
 
 export async function fetchWatchlist(): Promise<WatchlistItem[]> {
-  return readJsonOrThrow(await fetch(`${API_BASE}/api/watchlist`));
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/watchlist`, { headers: authHeaders() }));
 }
 
 export async function addWatchlistItem(item: WatchlistItem): Promise<WatchlistItem[]> {
   return readJsonOrThrow(
     await fetch(`${API_BASE}/api/watchlist`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(item),
     })
   );
@@ -132,7 +134,7 @@ export async function patchWatchlistItem(
   return readJsonOrThrow(
     await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(patch),
     })
   );
@@ -140,5 +142,72 @@ export async function patchWatchlistItem(
 
 export async function deleteWatchlistItem(item: Pick<WatchlistItem, "ticker" | "market">): Promise<WatchlistItem[]> {
   const url = `${API_BASE}/api/watchlist/${encodeURIComponent(item.ticker)}?market=${item.market}`;
-  return readJsonOrThrow(await fetch(url, { method: "DELETE" }));
+  return readJsonOrThrow(await fetch(url, { method: "DELETE", headers: authHeaders() }));
+}
+
+// ---------- auth + reports --------------------------------------------------
+
+export interface User {
+  id: number;
+  email: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface ReportMeta {
+  id: string;
+  ticker: string;
+  market: Market;
+  mode: AnalysisMode;
+  language: string;
+  title: string;
+  decision: string | null;
+  cost_usd: number;
+  created_at: string;
+}
+
+export interface Report extends ReportMeta {
+  content: string;
+}
+
+export async function registerApi(email: string, password: string): Promise<AuthResponse> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    })
+  );
+}
+
+export async function loginApi(email: string, password: string): Promise<AuthResponse> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    })
+  );
+}
+
+export async function fetchMe(): Promise<User> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/auth/me`, { headers: authHeaders() }));
+}
+
+export async function fetchReports(): Promise<ReportMeta[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/reports`, { headers: authHeaders() }));
+}
+
+export async function fetchReport(id: string): Promise<Report> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/reports/${encodeURIComponent(id)}`, { headers: authHeaders() }));
+}
+
+export async function deleteReport(id: string): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/reports/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders() })
+  );
 }

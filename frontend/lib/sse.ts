@@ -9,6 +9,7 @@
 // useEffect cleanup so unmounting cancels the in-flight request cleanly.
 
 import { API_BASE } from "./api";
+import { authHeaders } from "./token";
 
 export interface SSEHandlers {
   /** Called once per fully-assembled SSE frame, with parsed JSON `data`. */
@@ -75,6 +76,8 @@ export function streamSSE(
           "Content-Type": "application/json",
           // Hint to any intermediary not to buffer
           Accept: "text/event-stream",
+          // Bearer token (when signed in) so the run is saved to history.
+          ...authHeaders(),
         },
         body: JSON.stringify(body),
         signal: controller.signal,

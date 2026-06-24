@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Activity, Sparkles, Users, BarChart2, Network } from "lucide-react";
+import { Activity, BarChart2, Network, Sparkles, Users } from "lucide-react";
 import { StockInput } from "@/components/stock-input";
 import { SnapshotCard } from "@/components/snapshot-card";
 import { QuickResult } from "@/components/quick-result";
 import { DebateStream } from "@/components/debate-stream";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { fetchSnapshot, type Market, type Snapshot } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/format";
@@ -64,10 +62,10 @@ export default function Page() {
       ? modeParam
       : mode;
     if (modeParam) setMode(nextMode);
-    if (ticker && (market === "US" || market === "CN")) {
+    if (ticker && (market === "US" || market === "CN" || market === "HK")) {
       setInputDefault({ ticker: ticker.toUpperCase(), market });
     }
-    if (ticker && (market === "US" || market === "CN") && runNow) {
+    if (ticker && (market === "US" || market === "CN" || market === "HK") && runNow) {
       handleSubmit(ticker, market, nextMode);
     }
     // Only parse the initial URL once.
@@ -95,28 +93,23 @@ export default function Page() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <header className="space-y-7">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-accent">
-            <Activity className="h-4 w-4" />
-            <span className="text-[11px] font-mono tracking-[0.18em] uppercase">
-              {t("hero.eyebrow")}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/watchlist" className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:text-heading">
-              Watchlist
-            </Link>
-            <LanguageSwitcher />
-          </div>
+        <div className="flex items-center gap-2 text-accent">
+          <Activity className="h-4 w-4" />
+          <span className="text-sm font-semibold text-accent">{t("hero.eyebrow")}</span>
         </div>
 
         <div className="max-w-3xl space-y-3">
           <h1 className="text-3xl font-semibold tracking-tight text-heading sm:text-5xl sm:leading-[1.05]">
             {t("hero.h1")}
           </h1>
-          <p className="max-w-2xl text-sm leading-6 text-body sm:text-base">
-            {t("hero.lead")}
-          </p>
+          <ul className="max-w-2xl space-y-1 text-sm leading-6 text-body sm:text-base">
+            {t("hero.lead").split("\n").map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className="mt-[0.7em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         <section className="rounded-xl border border-border bg-surface/80 p-3 shadow-[0_18px_70px_rgba(0,0,0,0.18)]">

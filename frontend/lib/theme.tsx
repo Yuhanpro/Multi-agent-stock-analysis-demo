@@ -32,34 +32,37 @@ export interface ThemeConfig {
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
-  // Graphite + steel-blue. Lower saturation, more editorial/terminal research
-  // product than saturated blue SaaS dashboard.
-  bg: "222 28% 5%",
-  surface: "222 22% 9%",
-  elevated: "222 19% 12%",
-  input: "222 24% 7%",
-  border: "220 15% 22%",
-  borderStrong: "218 18% 32%",
-  heading: "210 28% 98%",
-  body: "214 16% 88%",
-  muted: "218 10% 66%",
-  subtle: "218 8% 48%",
-  reportHeading: "208 24% 96%",
-  reportBody: "212 14% 84%",
-  reportMuted: "218 9% 60%",
-  reportAccent: "202 84% 64%",
-  fg: "214 16% 88%",
-  accent: "202 84% 58%",
-  bull: "148 58% 45%",
-  bear: "2 62% 58%",
-  chartGrid: "220 15% 22%",
-  chartTooltip: "222 19% 12%",
+  // Deep navy base with electric-blue actions for a sharper tech feel.
+  bg: "226 48% 7%",
+  surface: "224 42% 11%",
+  elevated: "222 36% 15%",
+  input: "225 44% 9%",
+  border: "221 28% 24%",
+  borderStrong: "214 44% 39%",
+  heading: "214 42% 96%",
+  body: "216 24% 84%",
+  muted: "217 16% 66%",
+  subtle: "218 12% 48%",
+  reportHeading: "213 40% 95%",
+  reportBody: "216 22% 84%",
+  reportMuted: "217 15% 63%",
+  reportAccent: "204 100% 67%",
+  fg: "216 24% 84%",
+  accent: "207 92% 56%",
+  bull: "151 58% 46%",
+  bear: "350 72% 62%",
+  chartGrid: "221 28% 24%",
+  chartTooltip: "222 36% 15%",
   radius: "10px",
   density: "normal",
   font: "system",
 };
 
 const STORAGE_KEY = "stock-web:theme";
+const OLD_DEFAULT_SIGNATURES = [
+  { bg: "222 28% 5%", surface: "222 22% 9%", accent: "202 84% 58%", heading: "210 28% 98%" },
+  { bg: "228 10% 6%", surface: "220 11% 10%", accent: "174 64% 43%", heading: "42 24% 94%" },
+];
 
 const CSS_VAR_MAP: Record<keyof ThemeConfig, string | null> = {
   bg: "--theme-bg",
@@ -100,6 +103,13 @@ const Ctx = createContext<ThemeCtx | null>(null);
 function normalize(raw: unknown): ThemeConfig {
   if (!raw || typeof raw !== "object") return DEFAULT_THEME;
   const o = raw as Partial<ThemeConfig>;
+  const looksLikeOldDefault = OLD_DEFAULT_SIGNATURES.some((sig) =>
+    o.bg === sig.bg &&
+    o.surface === sig.surface &&
+    o.accent === sig.accent &&
+    o.heading === sig.heading
+  );
+  if (looksLikeOldDefault) return DEFAULT_THEME;
   const merged: ThemeConfig = {
     ...DEFAULT_THEME,
     ...o,
