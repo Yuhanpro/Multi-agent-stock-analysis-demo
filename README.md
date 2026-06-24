@@ -165,6 +165,24 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-06-24 — 多期财务报表接入(喂给三条 agent 分析链)
+
+交付内容:
+
+- **financials.py 数据层** —— 统一 `Financials` 模型:利润表/资产负债表/现金流量表核心科目(营收/毛利/营业利润/净利/EPS、总资产/负债/权益/现金/有息负债、经营现金流/资本开支/FCF)× ~5 年报 + 近几季 + 比率集;6 小时缓存;全程 None 降级不抛错。三市场适配:
+  - **US**:yfinance 三表(年报按数据源定、修跨财年标注);VPS 上 yfinance 429 → `stock_financial_us_analysis_indicator_em` 兜底(利润表级:营收/净利/EPS 多期)。
+  - **CN**:`stock_financial_abstract`(新浪源,VPS 可靠),毛利=营收−营业成本、总资产=权益/(1−资产负债率) 推导,比率直接取(ROE/ROA/毛利/净利/营业利润率/流动比率/速动比率…)。
+  - **HK**:`hk_analysis_indicator_em`(营收/毛利/净利/EPS + 比率)+ `hk_report_em` 补总资产/现金。
+- **新增 `GET /api/financials`**。
+- **Quick / Serenity 接入** —— `_format_snapshot_for_prompt` 补全此前漏掉的全部 fundamentals(ROE/ROA/毛利/净利/net_income/负债率/净利同比),并注入多期报表块(`quick.py` 以 `to_thread` 取数)。
+- **TradingAgents 接入** —— 在 `create_initial_state` 后把权威财务摘要作为 human message 注入 `messages`,所有 analyst(尤其基本面)可直接引用,弥补 TA 对 A股/港股的弱覆盖;零改 vendored 文件、可回退。
+- **部署验证** —— 后端 rsync + 重启(无新依赖)。服务器实测:CN 5 年报+6 季+12 比率(2.2s)、HK 5 年报+8 比率(0.3s)、US 6 年报+6 季(7s,akshare 兜底)。
+
+阻塞项 / 遗留:
+
+- **US 在 VPS 上为利润表级**:yfinance 被 429 时只走 akshare 兜底(无资产负债/现金流/比率);yfinance 偶尔通时才全量 + 缓存。如需 US 在 VPS 也全量,可扩 `us_report_em` 拉三表(eastmoney,额外调用)。
+- CN 现金/资本开支/FCF 在 abstract 中无绝对值(经营现金流有);HK 经营现金流/营业利润未取(指标表无)。
+
 ### 2026-06-24 — 账号体系 + 历史报告 + 左侧导航布局
 
 交付内容:
