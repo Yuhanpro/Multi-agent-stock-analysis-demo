@@ -22,6 +22,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.config import get_settings
+from app.services.financials import Financials, format_for_prompt
 from app.services.market_data import Snapshot
 
 log = logging.getLogger(__name__)
@@ -142,9 +143,13 @@ def _format_snapshot_for_prompt(s: Snapshot) -> str:
         f"- name: {f.name or 'n/a'} · sector: {f.sector or 'n/a'} · "
         f"currency: {f.currency or 'n/a'}\n"
         f"- market_cap: {num(f.market_cap)}\n"
-        f"- P/E (trailing): {num(f.pe)}  ·  P/B: {num(f.pb)}\n"
-        f"- dividend_yield: {pct(f.dividend_yield)}  ·  EPS: {num(f.eps)}  ·  "
-        f"revenue_yoy: {pct(f.revenue_yoy)}\n\n"
+        f"- P/E (trailing): {num(f.pe)}  ·  P/B: {num(f.pb)}  ·  "
+        f"dividend_yield: {pct(f.dividend_yield)}\n"
+        f"- EPS: {num(f.eps)}  ·  revenue: {num(f.revenue)}  ·  net_income: {num(f.net_income)}\n"
+        f"- revenue_yoy: {pct(f.revenue_yoy)}  ·  net_income_yoy: {pct(f.net_income_yoy)}\n"
+        f"- ROE: {pct(f.roe)}  ·  ROA: {pct(f.roa)}  ·  "
+        f"gross_margin: {pct(f.gross_margin)}  ·  net_margin: {pct(f.net_margin)}\n"
+        f"- debt/assets: {pct(f.debt_asset_ratio)}\n\n"
         f"Last ~30 trading-day closes: {closes}\n"
     )
 
@@ -168,6 +173,7 @@ async def stream_quick(
     *,
     skill_name: str,
     snapshot: Snapshot,
+    financials: Financials | None = None,
     user_question: str | None = None,
     model: str | None = None,
     language: str = "en",
@@ -191,6 +197,10 @@ async def stream_quick(
     model = model or settings.deep_think_llm
 
     user_msg_parts = [_format_snapshot_for_prompt(snapshot)]
+    if financials is not None:
+        block = format_for_prompt(financials)
+        if block:
+            user_msg_parts.append("\n" + block)
     if user_question:
         user_msg_parts.append(f"\n## User question\n\n{user_question.strip()}\n")
     else:

@@ -93,6 +93,7 @@ async def debate(request: Request, req: DebateRequest) -> EventSourceResponse:
         try:
             async for event_name, payload in stream_debate(
                 ticker=req.ticker,
+                market=req.market,
                 trade_date=req.trade_date,
                 analysts=req.analysts,
                 language=req.language,

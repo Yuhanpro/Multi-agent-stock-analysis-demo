@@ -1,6 +1,7 @@
 """POST /api/quick — single-agent streaming analysis."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Literal
 
@@ -10,6 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
 from app.services import auth, budget, reports
+from app.services.financials import get_financials
 from app.services.market_data import get_snapshot
 from app.services.rate_limit import check_and_count
 from app.services.skill_runner import sse_event, stream_quick
@@ -47,6 +49,14 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
     # Budget gate — cheaper than starting the SSE stream and aborting.
     budget.assert_within_budget()
 
+    # Comprehensive multi-period financials for the agent (best-effort, cached
+    # ~6h; run off-thread so the blocking upstream fetch doesn't stall the loop).
+    financials = None
+    try:
+        financials = await asyncio.to_thread(get_financials, req.ticker, req.market)
+    except Exception:
+        log.warning("financials fetch failed for %s/%s", req.ticker, req.market)
+
     # Logged-in users get their run persisted to history (best-effort).
     user = auth.user_from_request(request)
 
@@ -62,6 +72,7 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
             async for event_name, payload in stream_quick(
                 skill_name=req.skill,
                 snapshot=snapshot,
+                financials=financials,
                 user_question=req.question,
                 language=req.language,
                 model=settings.quick_think_llm,

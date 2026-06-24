@@ -144,6 +144,7 @@ def _ensure_deepseek_env(settings) -> None:
 async def stream_debate(
     *,
     ticker: str,
+    market: str = "US",
     trade_date: str | None = None,
     analysts: list[str] | None = None,
     language: str = "en",
@@ -196,6 +197,26 @@ async def stream_debate(
         trade_date=trade_date,
     )
     args = graph.propagator.get_graph_args()
+
+    # Inject our curated multi-period financials as an authoritative context
+    # message. TradingAgents' own data tools are US-centric (weak for CN/HK), so
+    # this gives every analyst (esp. fundamentals) reliable statements to cite.
+    try:
+        from app.services.financials import format_for_prompt, get_financials
+
+        fin = await asyncio.to_thread(get_financials, ticker, market)
+        block = format_for_prompt(fin)
+        if block:
+            zh = (language or "en").lower().startswith("zh")
+            preface = (
+                "以下为系统提供的权威多期财务数据(来自官方财报),分析时可直接引用,请勿臆造数字:\n\n"
+                if zh else
+                "Authoritative multi-period financial data provided by the system "
+                "(from official filings) — cite directly, do not fabricate numbers:\n\n"
+            )
+            init_state["messages"].append(("human", preface + block))
+    except Exception:
+        log.warning("financials injection failed for %s/%s", ticker, market)
 
     # graph.stream() is a sync generator. Drain it on a thread, push chunks
     # into an asyncio.Queue, and consume here so we can yield SSE events
