@@ -165,6 +165,23 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-06-24 — 账号体系 + 历史报告 + 左侧导航布局
+
+交付内容:
+
+- **账号体系(邮箱 + 密码,纯 stdlib 无新依赖)** —— 新增 SQLite(`app/services/db.py`,stdlib `sqlite3`)存 users/reports/watchlist;密码用 `pbkdf2_hmac` 哈希,会话用 `hmac` 签名 token(HS256 等效,验证硬绑定无 `alg:none` 隐患),`Authorization: Bearer` 传递。新增 `/api/auth/register|login|me`。选 stdlib 是为了让 VPS 部署保持 rsync+重启,不触发卡顿的 `uv sync`。`config` 加 `jwt_secret`(env 缺省时持久化到 `data/.jwt_secret`)与 `db_path`。
+- **历史报告** —— `app/services/reports.py` + `/api/reports`(列表/详情/删除,带 ownership 校验)。`quick.py` / `debate.py` 的 SSE 在完成时按**登录用户**落盘(quick 累积 token;debate 组装 agent 报告 + final 决策为 markdown),`done` 载荷回传 `saved_report_id`;未登录不存。列表用轻量 signal 提取(BUY/SELL/HOLD)做决策药丸。
+- **Watchlist 迁移为按用户** —— 从全局 `watchlist.json` 改为 SQLite 按 `user_id`,路由加登录依赖;旧 JSON 弃用。
+- **前端账号 UI** —— `lib/token.ts`(localStorage + Bearer 注入 `api.ts`/`sse.ts`)、`lib/auth.tsx`(AuthProvider)、`components/auth-widget.tsx`(登录/注册弹窗 + 账号下拉)、`/reports` 列表+详情(react-markdown)、watchlist 接入登录守卫。
+- **左侧导航壳(轻版)** —— `components/app-shell.tsx`:左侧固定导航(分析/自选/历史,当前页高亮),登录 + 中英文切换固定右上角,标题上方保留 eyebrow;移动端左栏收成汉堡抽屉,账号收成头像下拉(图标点开邮箱/退出),卡片单列堆叠。
+- **部署验证** —— 后端 rsync 到 `/opt`(无新依赖,跳过 uv sync)+ 重启;前端本机 build → 上传 `out/` → `/var/www/stock-web`。本地 TestClient 全绿,公网实测:注册/登录/me(200/401)、reports(空 200)、watchlist(无 token 401 / 有 token 增列 200)、`/reports` 页 200、新壳 chunk 含 `nav.analyze`。
+- **安全口径** —— Stage A 为纯 HTTP,token/密码在链路上为明文(已在登录框提示"demo 勿用真实密码")。HTTPS 待 Stage B(ICP)。
+
+阻塞项 / 遗留:
+
+- 无邮箱验证 / 找回密码(MVP);无按账号限流(限流仍按 IP)。
+- HTTPS 未上(Stage B);真账号安全需备案 + TLS 后再加固。
+
 ### 2026-06-23 — A 股基本面补全(成长性 + 估值/盈利/质量)
 
 交付内容:
