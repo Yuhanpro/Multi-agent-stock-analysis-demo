@@ -165,6 +165,19 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-06-24 — 财务可视化面板 + 报告分享/导出
+
+交付内容:
+
+- **财务可视化面板** —— `components/financials-panel.tsx`:接 `/api/financials`,营收/净利多年柱状图 + 毛利率/净利率/ROE 走势线 + 关键科目表(recharts,双语/响应式/主题色,单位随币种 亿/B 自适应),接入分析页 snapshot 下方;无数据静默隐藏。
+- **报告分享(可开关/可撤销)** —— `reports` 表加 `is_public`(启动时 `PRAGMA` 检测 + `ALTER` 兜底迁移,**prod 老库已平滑加列、数据无损**);`POST /api/reports/{id}/share` 切换、`GET /api/public/reports/{id}` 无需登录(仅当公开);`/reports` 详情加 分享/取消分享 + 复制链接;新增公开查看页 `/share?id=`。默认私密。
+- **报告导出长图** —— 复用组件 `components/report-view.tsx` + `html-to-image`,一键把报告卡导出 PNG(适合发微信);分享页与详情页通用。
+- **验证** —— 本地 TestClient 测旧 schema DB 自动迁移 + 分享/撤销/公开可见全流程;公网部署后服务器侧实测:public 端点 404、分享需鉴权 401、`/api/financials` 200、`/share` 页在线、prod 库 `is_public` 迁移已生效。
+
+阻塞项 / 遗留:
+
+- 访问稳定性(Stage 0)仍未做:裸 IP `:18080` 在国内会间歇性丢请求(API/SSE 长连接更易中断,表现为 "Failed to fetch")。下一步可上 Cloudflare 隧道(临时)或 ICP+HTTPS(根治)。
+
 ### 2026-06-24 — 多期财务报表接入(喂给三条 agent 分析链)
 
 交付内容:
