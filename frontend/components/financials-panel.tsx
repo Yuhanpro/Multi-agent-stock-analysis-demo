@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -30,6 +31,11 @@ const CHART = {
   net: "#00c2de",       // teal / cyan
   roe: "#7cb3ff",       // sky blue
 };
+
+function barLabel(v: number | null): string {
+  if (v == null) return "";
+  return Math.abs(v) >= 100 ? String(Math.round(v)) : v.toFixed(1);
+}
 
 function scaleInfo(currency: string | null, zh: boolean) {
   if (currency === "USD") return { div: 1e9, unit: zh ? "十亿" : "B" };
@@ -118,7 +124,7 @@ export function FinancialsPanel({ ticker, market }: Props) {
           </div>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={series} margin={{ top: 6, right: 6, left: 0, bottom: 0 }} barGap={2}>
+              <BarChart data={series} margin={{ top: 18, right: 6, left: 0, bottom: 0 }} barGap={2}>
                 <defs>
                   <linearGradient id="fin-rev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={CHART.revenue} stopOpacity={0.95} />
@@ -133,8 +139,12 @@ export function FinancialsPanel({ ticker, market }: Props) {
                 <XAxis dataKey="period" tick={axis} tickLine={false} axisLine={false} />
                 <YAxis tick={axis} tickLine={false} axisLine={false} width={40} />
                 <Tooltip contentStyle={tip} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: CHART.revenue, opacity: 0.08 }} />
-                <Bar name={zh ? "营收" : "Revenue"} dataKey="revenue" fill="url(#fin-rev)" radius={[4, 4, 0, 0]} />
-                <Bar name={zh ? "净利" : "Net Income"} dataKey="netIncome" fill="url(#fin-ni)" radius={[4, 4, 0, 0]} />
+                <Bar name={zh ? "营收" : "Revenue"} dataKey="revenue" fill="url(#fin-rev)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="revenue" position="top" fontSize={9} fontWeight={600} fill="hsl(var(--theme-body))" formatter={barLabel} />
+                </Bar>
+                <Bar name={zh ? "净利" : "Net Income"} dataKey="netIncome" fill="url(#fin-ni)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="netIncome" position="top" fontSize={9} fontWeight={600} fill="hsl(var(--theme-body))" formatter={barLabel} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -171,9 +181,9 @@ export function FinancialsPanel({ ticker, market }: Props) {
         <table className="w-full border-collapse text-right text-xs">
           <thead>
             <tr className="text-muted">
-              <th className="py-1 pr-3 text-left font-medium">{zh ? "年报" : "Annual"}</th>
+              <th className="py-1 pr-3 text-left font-semibold text-heading">{zh ? "年报" : "Annual"}</th>
               {fin.annual.map((p) => (
-                <th key={p.period} className="px-2 py-1 font-mono font-medium text-heading">{p.period}</th>
+                <th key={p.period} className="px-2 py-1 font-mono font-semibold text-heading">{p.period}</th>
               ))}
             </tr>
           </thead>
@@ -186,7 +196,7 @@ export function FinancialsPanel({ ticker, market }: Props) {
               [zh ? "股东权益" : "Equity", (p: FinPeriod) => p.total_equity],
             ] as [string, (p: FinPeriod) => number | null][]).map(([label, get]) => (
               <tr key={label} className="border-t border-border/40">
-                <td className="py-1 pr-3 text-left text-muted">{label}</td>
+                <td className="py-1 pr-3 text-left font-semibold text-body">{label}</td>
                 {fin.annual.map((p) => {
                   const v = get(p);
                   return (
