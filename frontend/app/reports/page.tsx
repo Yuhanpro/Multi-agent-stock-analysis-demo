@@ -3,13 +3,12 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Link2, Loader2, Share2, Trash2 } from "lucide-react";
 import {
   deleteReport,
   fetchReport,
   fetchReports,
+  shareReport,
   type Report,
   type ReportMeta,
 } from "@/lib/api";
@@ -17,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 import { LoginPrompt } from "@/components/auth-widget";
+import { ReportView, decisionClass, fmtDate } from "@/components/report-view";
 
 export default function ReportsPage() {
   return (
@@ -52,20 +52,6 @@ function ReportsInner() {
       )}
     </main>
   );
-}
-
-function decisionClass(d: string | null): string {
-  if (d === "BUY") return "border-bull/50 bg-bull/10 text-bull";
-  if (d === "SELL") return "border-bear/50 bg-bear/10 text-bear";
-  return "border-border text-muted";
-}
-
-function fmtDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
 }
 
 function ReportList() {
@@ -158,15 +144,59 @@ function ReportDetail({ id }: { id: string }) {
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     fetchReport(id)
-      .then(setReport)
+      .then((r) => { setReport(r); setIsPublic(r.is_public); })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function toggleShare() {
+    if (!report) return;
+    try {
+      const r = await shareReport(report.id, !isPublic);
+      setIsPublic(r.is_public);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function copyLink() {
+    if (!report) return;
+    const url = `${window.location.origin}/share?id=${encodeURIComponent(report.id)}`;
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
+
+  const shareActions = report && (
+    <>
+      <button
+        onClick={toggleShare}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs",
+          isPublic ? "border-accent/60 bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:text-heading"
+        )}
+      >
+        <Share2 className="h-3.5 w-3.5" />
+        {isPublic ? t("reports.unshare") : t("reports.share")}
+      </button>
+      {isPublic && (
+        <button
+          onClick={copyLink}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:text-heading"
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+          {copied ? t("reports.copied") : t("reports.copyLink")}
+        </button>
+      )}
+    </>
+  );
 
   return (
     <section className="mt-6">
@@ -182,21 +212,10 @@ function ReportDetail({ id }: { id: string }) {
       ) : error ? (
         <div className="mt-4 rounded-lg border border-bear/40 bg-bear/10 px-4 py-3 text-sm text-bear">{error}</div>
       ) : report ? (
-        <article className="mt-4 rounded-xl border border-border bg-surface p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border/60 pb-3">
-            <span className="font-mono text-base font-semibold text-heading">{report.title}</span>
-            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{report.market}</span>
-            {report.decision && (
-              <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-semibold", decisionClass(report.decision))}>
-                {report.decision}
-              </span>
-            )}
-            <span className="ml-auto text-xs text-muted">{fmtDate(report.created_at)}</span>
-          </div>
-          <div className="prose-tight max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.content}</ReactMarkdown>
-          </div>
-        </article>
+        <div className="mt-4">
+          {isPublic && <div className="mb-2 text-xs text-muted">{t("reports.publicHint")}</div>}
+          <ReportView report={report} actions={shareActions} />
+        </div>
       ) : null}
     </section>
   );

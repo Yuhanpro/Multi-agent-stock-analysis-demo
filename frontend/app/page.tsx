@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Activity, BarChart2, Network, Sparkles, Users } from "lucide-react";
 import { StockInput } from "@/components/stock-input";
 import { SnapshotCard } from "@/components/snapshot-card";
+import { FinancialsPanel } from "@/components/financials-panel";
 import { QuickResult } from "@/components/quick-result";
 import { DebateStream } from "@/components/debate-stream";
 import { fetchSnapshot, type Market, type Snapshot } from "@/lib/api";
@@ -158,6 +159,8 @@ export default function Page() {
         )}
 
         {snapshot && <SnapshotCard snapshot={snapshot} />}
+
+        {snapshot && <FinancialsPanel ticker={snapshot.ticker} market={snapshot.market} />}
 
         {run && (run.mode === "quick" || run.mode === "serenity") && (
           <QuickResult

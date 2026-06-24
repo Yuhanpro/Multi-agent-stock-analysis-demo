@@ -168,6 +168,7 @@ export interface ReportMeta {
   decision: string | null;
   cost_usd: number;
   created_at: string;
+  is_public: boolean;
 }
 
 export interface Report extends ReportMeta {
@@ -210,4 +211,54 @@ export async function deleteReport(id: string): Promise<{ ok: boolean }> {
   return readJsonOrThrow(
     await fetch(`${API_BASE}/api/reports/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders() })
   );
+}
+
+export async function shareReport(id: string, isPublic: boolean): Promise<Report> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/reports/${encodeURIComponent(id)}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ public: isPublic }),
+    })
+  );
+}
+
+export async function fetchPublicReport(id: string): Promise<Report> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/public/reports/${encodeURIComponent(id)}`));
+}
+
+// ---------- financials ------------------------------------------------------
+
+export interface FinPeriod {
+  period: string;
+  end_date: string;
+  is_annual: boolean;
+  revenue: number | null;
+  gross_profit: number | null;
+  operating_income: number | null;
+  net_income: number | null;
+  eps: number | null;
+  total_assets: number | null;
+  total_liabilities: number | null;
+  total_equity: number | null;
+  cash: number | null;
+  total_debt: number | null;
+  operating_cash_flow: number | null;
+  capex: number | null;
+  free_cash_flow: number | null;
+}
+
+export interface Financials {
+  ticker: string;
+  market: Market;
+  currency: string | null;
+  annual: FinPeriod[];
+  quarterly: FinPeriod[];
+  ratios: Record<string, number | null>;
+  source: string;
+}
+
+export async function fetchFinancials(ticker: string, market: Market): Promise<Financials> {
+  const url = `${API_BASE}/api/financials?ticker=${encodeURIComponent(ticker)}&market=${market}`;
+  return readJsonOrThrow(await fetch(url));
 }

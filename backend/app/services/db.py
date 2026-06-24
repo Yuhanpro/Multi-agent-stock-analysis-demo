@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS reports (
     content    TEXT NOT NULL,
     cost_usd   REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
+    is_public  INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id, created_at DESC);
@@ -71,6 +72,10 @@ def init_db() -> None:
         if _conn is None:
             _conn = _connect()
         _conn.executescript(SCHEMA)
+        # Lightweight migration: add columns introduced after first deploy.
+        cols = {r["name"] for r in _conn.execute("PRAGMA table_info(reports)").fetchall()}
+        if "is_public" not in cols:
+            _conn.execute("ALTER TABLE reports ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0")
         _conn.commit()
 
 

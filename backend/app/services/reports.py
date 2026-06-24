@@ -32,6 +32,7 @@ class ReportMeta(BaseModel):
     decision: str | None = None
     cost_usd: float = 0.0
     created_at: str
+    is_public: bool = False
 
 
 class Report(ReportMeta):
@@ -68,6 +69,7 @@ def _row_to_meta(row) -> ReportMeta:
         id=row["id"], ticker=row["ticker"], market=row["market"], mode=row["mode"],
         language=row["language"], title=row["title"], decision=row["decision"],
         cost_usd=row["cost_usd"], created_at=row["created_at"],
+        is_public=bool(row["is_public"]),
     )
 
 
@@ -101,7 +103,7 @@ def save_report(
 
 def list_reports(user_id: int) -> list[ReportMeta]:
     rows = db.query_all(
-        """SELECT id, ticker, market, mode, language, title, decision, cost_usd, created_at
+        """SELECT id, ticker, market, mode, language, title, decision, cost_usd, created_at, is_public
            FROM reports WHERE user_id = ? ORDER BY created_at DESC""",
         (user_id,),
     )
@@ -116,9 +118,31 @@ def get_report(user_id: int, report_id: str) -> Report | None:
         id=row["id"], ticker=row["ticker"], market=row["market"], mode=row["mode"],
         language=row["language"], title=row["title"], decision=row["decision"],
         cost_usd=row["cost_usd"], created_at=row["created_at"], content=row["content"],
+        is_public=bool(row["is_public"]),
     )
 
 
 def delete_report(user_id: int, report_id: str) -> bool:
     cur = db.execute("DELETE FROM reports WHERE id = ? AND user_id = ?", (report_id, user_id))
     return cur.rowcount > 0
+
+
+def set_public(user_id: int, report_id: str, public: bool) -> bool:
+    cur = db.execute(
+        "UPDATE reports SET is_public = ? WHERE id = ? AND user_id = ?",
+        (1 if public else 0, report_id, user_id),
+    )
+    return cur.rowcount > 0
+
+
+def get_public_report(report_id: str) -> Report | None:
+    """Fetch a report only if its owner has marked it public (no auth needed)."""
+    row = db.query_one("SELECT * FROM reports WHERE id = ? AND is_public = 1", (report_id,))
+    if row is None:
+        return None
+    return Report(
+        id=row["id"], ticker=row["ticker"], market=row["market"], mode=row["mode"],
+        language=row["language"], title=row["title"], decision=row["decision"],
+        cost_usd=row["cost_usd"], created_at=row["created_at"], content=row["content"],
+        is_public=True,
+    )
