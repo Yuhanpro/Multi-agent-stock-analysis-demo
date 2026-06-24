@@ -183,33 +183,84 @@ def _us_financials(ticker: str) -> Financials:
     return fin
 
 
+def _sum_opt(*vals) -> float | None:
+    nums = [v for v in vals if v is not None]
+    return sum(nums) if nums else None
+
+
 def _us_financials_akshare(ticker: str) -> Financials:
-    """Fallback for when yfinance is rate-limited (common on the VPS)."""
+    """Fallback when yfinance is rate-limited (常见于 VPS). Pulls the full three
+    statements from EastMoney (reachable from the mainland box), so US gets
+    balance-sheet / cash-flow rows too — not just the income statement."""
     import akshare as ak
 
     fin = Financials(ticker=ticker.upper(), market="US", currency="USD", source="akshare-us-em")
-    try:
-        ind = ak.stock_financial_us_analysis_indicator_em(symbol=ticker.upper())
-    except Exception as e:
-        log.warning("akshare US indicator fallback failed for %s: %s", ticker, e)
+
+    def fetch(sym: str):
+        try:
+            df = ak.stock_financial_us_report_em(stock=ticker.upper(), symbol=sym, indicator="年报")
+            return df if (df is not None and not df.empty) else None
+        except Exception as e:
+            log.warning("akshare US %s failed for %s: %s", sym, ticker, e)
+            return None
+
+    def to_map(df) -> dict[str, dict[str, float | None]]:
+        m: dict[str, dict[str, float | None]] = {}
+        if df is None:
+            return m
+        for _, r in df.iterrows():
+            d = str(r.get("REPORT_DATE") or "")[:10]
+            if d:
+                m.setdefault(d, {})[str(r.get("ITEM_NAME"))] = _safe_float(r.get("AMOUNT"))
+        return m
+
+    mi = to_map(fetch("综合损益表"))
+    mb = to_map(fetch("资产负债表"))
+    mc = to_map(fetch("现金流量表"))
+    dates = sorted(set(mi) | set(mb) | set(mc), reverse=True)[:5]
+    if not dates:
         return fin
-    if ind is None or ind.empty:
-        return fin
-    ind = ind.head(6)
+
     periods: list[FinPeriod] = []
-    for _, row in ind.iterrows():
-        end = str(row.get("REPORT_DATE") or "")[:10]
-        if not end:
-            continue
-        label, is_annual = _q_label(end)
+    for d in dates:
+        i, b, c = mi.get(d, {}), mb.get(d, {}), mc.get(d, {})
+        ocf = c.get("经营活动产生的现金流量净额")
+        capex = c.get("购买固定资产")
         periods.append(FinPeriod(
-            period=label, end_date=end, is_annual=is_annual,
-            revenue=_safe_float(row.get("OPERATE_INCOME")),
-            net_income=_safe_float(row.get("PARENT_HOLDER_NETPROFIT")),
-            eps=_safe_float(row.get("BASIC_EPS")),
+            period=_label(d, True), end_date=d, is_annual=True,
+            revenue=i.get("营业收入") or i.get("主营收入"),
+            gross_profit=i.get("毛利"),
+            operating_income=i.get("营业利润"),
+            net_income=i.get("归属于母公司股东净利润") or i.get("净利润"),
+            eps=i.get("摊薄每股收益-普通股") or i.get("基本每股收益-普通股"),
+            total_assets=b.get("总资产"),
+            total_liabilities=b.get("总负债"),
+            total_equity=b.get("股东权益合计") or b.get("归属于母公司股东权益"),
+            cash=b.get("现金及现金等价物"),
+            total_debt=_sum_opt(b.get("短期债务"), b.get("长期负债"), b.get("长期负债(本期部分)")),
+            operating_cash_flow=ocf, capex=capex,
+            # EastMoney 购买固定资产 is a negative outflow → use abs() so FCF = OCF − capex.
+            free_cash_flow=(ocf - abs(capex)) if (ocf is not None and capex is not None) else None,
         ))
-    fin.annual = [p for p in periods if p.is_annual] or periods
-    fin.quarterly = [p for p in periods if not p.is_annual]
+    fin.annual = periods
+
+    p = periods[0]
+    r: dict[str, float | None] = {}
+    if p.revenue:
+        if p.gross_profit is not None:
+            r["gross_margin"] = p.gross_profit / p.revenue
+        if p.operating_income is not None:
+            r["operating_margin"] = p.operating_income / p.revenue
+        if p.net_income is not None:
+            r["net_margin"] = p.net_income / p.revenue
+    if p.total_equity and p.net_income is not None:
+        r["roe"] = p.net_income / p.total_equity
+    if p.total_assets:
+        if p.net_income is not None:
+            r["roa"] = p.net_income / p.total_assets
+        if p.total_liabilities is not None:
+            r["debt_to_assets"] = p.total_liabilities / p.total_assets
+    fin.ratios = {k: v for k, v in r.items() if v is not None}
     return fin
 
 
