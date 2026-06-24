@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart2, Clock, Menu, Star, X } from "lucide-react";
+import { Activity, BarChart2, Clock, Menu, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 import { AuthWidget } from "./auth-widget";
@@ -11,6 +11,7 @@ import { LanguageSwitcher } from "./language-switcher";
 
 const NAV = [
   { href: "/", icon: BarChart2, key: "nav.analyze" as const },
+  { href: "/diagnose", icon: Stethoscope, key: "nav.diagnose" as const },
   { href: "/watchlist", icon: Star, key: "nav.watchlist" as const },
   { href: "/reports", icon: Clock, key: "nav.reports" as const },
 ];

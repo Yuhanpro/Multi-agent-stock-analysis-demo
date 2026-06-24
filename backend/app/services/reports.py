@@ -16,8 +16,8 @@ from app.services import db
 
 # Order matters: longer / more specific signals first.
 _SIGNALS = [
-    ("强烈买入", "BUY"), ("买入", "BUY"), ("增持", "BUY"), ("BUY", "BUY"), ("STRONG BUY", "BUY"),
-    ("强烈卖出", "SELL"), ("卖出", "SELL"), ("减持", "SELL"), ("SELL", "SELL"),
+    ("强烈买入", "BUY"), ("买入", "BUY"), ("增持", "BUY"), ("加仓", "BUY"), ("STRONG BUY", "BUY"), ("BUY", "BUY"), ("ADD", "BUY"),
+    ("强烈卖出", "SELL"), ("卖出", "SELL"), ("清仓", "SELL"), ("减持", "SELL"), ("减仓", "SELL"), ("SELL", "SELL"), ("TRIM", "SELL"),
     ("持有", "HOLD"), ("观望", "HOLD"), ("中性", "HOLD"), ("HOLD", "HOLD"),
 ]
 
@@ -61,6 +61,7 @@ def _mode_label(mode: str, language: str) -> str:
         "quick": "巴菲特速评" if zh else "Buffett Quick",
         "serenity": "Serenity 产业链" if zh else "Serenity Chain",
         "debate": "多智能体辩论" if zh else "Multi-Agent Debate",
+        "diagnose": "持仓诊断" if zh else "Position Diagnosis",
     }.get(mode, mode)
 
 

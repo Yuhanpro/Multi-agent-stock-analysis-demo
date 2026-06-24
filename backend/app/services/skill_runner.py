@@ -175,6 +175,9 @@ async def stream_quick(
     snapshot: Snapshot,
     financials: Financials | None = None,
     user_question: str | None = None,
+    cost_basis: float | None = None,
+    shares: float | None = None,
+    buy_date: str | None = None,
     model: str | None = None,
     language: str = "en",
 ) -> AsyncIterator[tuple[str, dict]]:
@@ -201,7 +204,48 @@ async def stream_quick(
         block = format_for_prompt(financials)
         if block:
             user_msg_parts.append("\n" + block)
-    if user_question:
+    if cost_basis is not None:
+        name = snapshot.fundamentals.name or snapshot.ticker
+        price = snapshot.price
+        cur = snapshot.fundamentals.currency or ""
+        pl = ((price - cost_basis) / cost_basis * 100) if (price and cost_basis) else None
+        bits = [f"成本价 {cost_basis} {cur}/股"]
+        if shares:
+            bits.append(f"持股 {shares} 股")
+        if buy_date:
+            bits.append(f"买入日期 {buy_date}")
+        if price is not None:
+            bits.append(f"当前价 {price} {cur}")
+        if pl is not None:
+            bits.append(f"未实现盈亏约 {pl:+.1f}%")
+        posline = " · ".join(bits)
+        if (language or "en").lower().startswith("zh"):
+            diag = (
+                f"\n## 持仓诊断任务\n\n用户当前持有 {name}({snapshot.ticker}):{posline}。\n\n"
+                "请给出明确的**仓位建议:加仓 / 持有 / 减仓 / 清仓**(给目标价、止损与理由)。\n"
+                "**核心原则(务必遵守)**:\n"
+                "1. 成本价只是背景信息,**决策必须基于公司质地、当前估值与前瞻风险**,而不是买入价。\n"
+                "2. **不要以'回本'为目标**——'套牢了再拿拿'是典型的损失厌恶/锚定偏差。\n"
+                "3. 若用户的处境暗示其可能因亏损而非理性持有,请**明确指出这一偏差并纠正**。\n"
+                "4. 把'前瞻投资逻辑'与'用户当前盈亏处境'分开讲清楚。\n"
+                "按 Standard Output Format 输出,并在结论处突出针对该持仓的具体动作建议。\n"
+            )
+        else:
+            diag = (
+                f"\n## Position diagnosis task\n\nThe user holds {name} ({snapshot.ticker}): {posline}.\n\n"
+                "Give a clear **position recommendation: ADD / HOLD / TRIM / SELL** (with target, stop, and reasoning).\n"
+                "**Core rules:**\n"
+                "1. Cost basis is context only — the decision MUST rest on business quality, current "
+                "valuation and forward risk, NOT the entry price.\n"
+                "2. Do NOT aim to 'break even' — holding a loser to recover is textbook loss-aversion / anchoring.\n"
+                "3. If the user's situation suggests holding irrationally because of a loss, call out that bias and correct it.\n"
+                "4. Separate the forward investment thesis from the user's current P/L situation.\n"
+                "Use the Standard Output Format and make the position action explicit in the conclusion.\n"
+            )
+        if user_question:
+            diag += f"\n用户补充问题 / extra question: {user_question.strip()}\n"
+        user_msg_parts.append(diag)
+    elif user_question:
         user_msg_parts.append(f"\n## User question\n\n{user_question.strip()}\n")
     else:
         if skill.name == "serenity":

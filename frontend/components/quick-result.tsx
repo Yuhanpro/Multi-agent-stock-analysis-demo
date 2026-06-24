@@ -15,6 +15,10 @@ interface Props {
   market: Market;
   language: Lang;
   skill?: "buffett" | "serenity";
+  /** Position diagnosis: when set, the agent gives an add/hold/trim/sell call. */
+  costBasis?: number;
+  shares?: number;
+  buyDate?: string;
   /** Bumping this re-runs the request. Parent passes a counter / nonce. */
   runId: number;
 }
@@ -28,7 +32,7 @@ interface DoneInfo {
   stop_reason?: string;
 }
 
-export function QuickResult({ ticker, market, runId, language, skill = "buffett" }: Props) {
+export function QuickResult({ ticker, market, runId, language, skill = "buffett", costBasis, shares, buyDate }: Props) {
   const { t } = useT();
   const [text, setText] = useState("");
   const [model, setModel] = useState<string | null>(null);
@@ -44,7 +48,12 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
 
     const ctl = streamSSE(
       "/api/quick",
-      { ticker, market, skill, language },
+      {
+        ticker, market, skill, language,
+        ...(costBasis ? { cost_basis: costBasis } : {}),
+        ...(shares ? { shares } : {}),
+        ...(buyDate ? { buy_date: buyDate } : {}),
+      },
       {
         onEvent: (event, data) => {
           switch (event) {
@@ -69,7 +78,7 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
     );
     ctlRef.current = ctl;
     return () => ctl.abort();
-  }, [ticker, market, runId, language, skill]);
+  }, [ticker, market, runId, language, skill, costBasis, shares, buyDate]);
 
   const inflight = !done && !error;
   const shortName = companyShortName(ticker, market);

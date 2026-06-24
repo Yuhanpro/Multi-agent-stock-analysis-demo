@@ -27,6 +27,11 @@ class QuickRequest(BaseModel):
     skill: Literal["buffett", "serenity"] = "buffett"
     language: Literal["en", "zh"] = "en"
     question: str | None = Field(None, max_length=2000)
+    # Position diagnosis (optional): when cost_basis is set, the agent gives a
+    # hold/add/trim/sell recommendation framed against the user's entry.
+    cost_basis: float | None = Field(None, gt=0)
+    shares: float | None = Field(None, gt=0)
+    buy_date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 @router.post("/quick")
@@ -74,6 +79,9 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
                 snapshot=snapshot,
                 financials=financials,
                 user_question=req.question,
+                cost_basis=req.cost_basis,
+                shares=req.shares,
+                buy_date=req.buy_date,
                 language=req.language,
                 model=settings.quick_think_llm,
             ):
@@ -90,7 +98,11 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
                                 user.id,
                                 ticker=req.ticker,
                                 market=req.market,
-                                mode="serenity" if req.skill == "serenity" else "quick",
+                                mode=(
+                                "diagnose" if req.cost_basis is not None
+                                else "serenity" if req.skill == "serenity"
+                                else "quick"
+                            ),
                                 language=req.language,
                                 content="".join(chunks),
                                 cost_usd=cost,
