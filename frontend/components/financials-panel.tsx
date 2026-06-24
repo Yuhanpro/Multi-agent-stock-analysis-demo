@@ -21,6 +21,16 @@ interface Props {
   market: Market;
 }
 
+// Curated blue-family palette so the charts stay cohesive and on-theme,
+// independent of the bull/bear (green/red) semantic colors.
+const CHART = {
+  revenue: "#2563eb",   // strong blue
+  netIncome: "#38bdf8", // sky blue (distinct from revenue)
+  gross: "#3b82f6",     // blue
+  net: "#06b6d4",       // cyan
+  roe: "#818cf8",       // indigo
+};
+
 function scaleInfo(currency: string | null, zh: boolean) {
   if (currency === "USD") return { div: 1e9, unit: zh ? "十亿" : "B" };
   return { div: 1e8, unit: zh ? "亿" : "×1e8" };
@@ -101,18 +111,30 @@ export function FinancialsPanel({ ticker, market }: Props) {
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Revenue + net income bars */}
         <div>
-          <div className="mb-1 text-xs text-muted">
-            {zh ? `营收 / 净利(${unit})` : `Revenue / Net Income (${unit})`}
+          <div className="mb-1 flex items-center gap-3 text-xs text-muted">
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: CHART.revenue }} />{zh ? "营收" : "Revenue"}</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: CHART.netIncome }} />{zh ? "净利" : "Net Income"}</span>
+            <span className="ml-auto font-mono text-subtle">{unit}</span>
           </div>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={series} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+              <BarChart data={series} margin={{ top: 6, right: 6, left: 0, bottom: 0 }} barGap={2}>
+                <defs>
+                  <linearGradient id="fin-rev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CHART.revenue} stopOpacity={0.95} />
+                    <stop offset="100%" stopColor={CHART.revenue} stopOpacity={0.5} />
+                  </linearGradient>
+                  <linearGradient id="fin-ni" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CHART.netIncome} stopOpacity={0.95} />
+                    <stop offset="100%" stopColor={CHART.netIncome} stopOpacity={0.5} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
                 <XAxis dataKey="period" tick={axis} tickLine={false} axisLine={false} />
                 <YAxis tick={axis} tickLine={false} axisLine={false} width={40} />
-                <Tooltip contentStyle={tip} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: "hsl(var(--theme-chart-grid))", opacity: 0.25 }} />
-                <Bar name={zh ? "营收" : "Revenue"} dataKey="revenue" fill="hsl(var(--theme-accent))" radius={[3, 3, 0, 0]} />
-                <Bar name={zh ? "净利" : "Net Income"} dataKey="netIncome" fill="hsl(var(--theme-bull))" radius={[3, 3, 0, 0]} />
+                <Tooltip contentStyle={tip} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: CHART.revenue, opacity: 0.08 }} />
+                <Bar name={zh ? "营收" : "Revenue"} dataKey="revenue" fill="url(#fin-rev)" radius={[4, 4, 0, 0]} />
+                <Bar name={zh ? "净利" : "Net Income"} dataKey="netIncome" fill="url(#fin-ni)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -121,8 +143,11 @@ export function FinancialsPanel({ ticker, market }: Props) {
         {/* Margins + ROE lines */}
         {hasMargins && (
           <div>
-            <div className="mb-1 text-xs text-muted">
-              {zh ? "利润率 / ROE(%)" : "Margins / ROE (%)"}
+            <div className="mb-1 flex items-center gap-3 text-xs text-muted">
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: CHART.gross }} />{zh ? "毛利率" : "Gross"}</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: CHART.net }} />{zh ? "净利率" : "Net"}</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: CHART.roe }} />ROE</span>
+              <span className="ml-auto font-mono text-subtle">%</span>
             </div>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -131,9 +156,9 @@ export function FinancialsPanel({ ticker, market }: Props) {
                   <XAxis dataKey="period" tick={axis} tickLine={false} axisLine={false} />
                   <YAxis tick={axis} tickLine={false} axisLine={false} width={40} unit="%" />
                   <Tooltip contentStyle={tip} labelStyle={{ color: "hsl(var(--theme-heading))" }} />
-                  <Line name={zh ? "毛利率" : "Gross"} dataKey="grossMargin" stroke="hsl(var(--theme-accent))" strokeWidth={2} dot={false} connectNulls />
-                  <Line name={zh ? "净利率" : "Net"} dataKey="netMargin" stroke="hsl(var(--theme-bull))" strokeWidth={2} dot={false} connectNulls />
-                  <Line name="ROE" dataKey="roe" stroke="hsl(var(--theme-bear))" strokeWidth={2} dot={false} connectNulls />
+                  <Line name={zh ? "毛利率" : "Gross"} dataKey="grossMargin" stroke={CHART.gross} strokeWidth={2.5} dot={{ r: 2.5, fill: CHART.gross, strokeWidth: 0 }} activeDot={{ r: 4 }} connectNulls />
+                  <Line name={zh ? "净利率" : "Net"} dataKey="netMargin" stroke={CHART.net} strokeWidth={2.5} dot={{ r: 2.5, fill: CHART.net, strokeWidth: 0 }} activeDot={{ r: 4 }} connectNulls />
+                  <Line name="ROE" dataKey="roe" stroke={CHART.roe} strokeWidth={2.5} dot={{ r: 2.5, fill: CHART.roe, strokeWidth: 0 }} activeDot={{ r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </div>
