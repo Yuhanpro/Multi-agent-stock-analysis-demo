@@ -260,19 +260,25 @@ def _us_snapshot_akshare(ticker: str) -> Snapshot:
 _CN_SPOT_CACHE: tuple[float, object] | None = None
 
 
-def _cn_realtime_quote(code: str) -> RealtimeQuote | None:
-    """Best-effort A-share real-time quote from akshare stock_zh_a_spot.
-
-    The endpoint downloads the whole A-share table and is relatively slow, so
-    cache it for 60 seconds per process.
-    """
+def get_cn_spot():
+    """Shared 60s-cached A-share spot table (akshare stock_zh_a_spot, Sina).
+    Reused by the realtime quote and the market-overview hot lists."""
     global _CN_SPOT_CACHE
     import akshare as ak
 
     now = time.time()
     if _CN_SPOT_CACHE is None or now - _CN_SPOT_CACHE[0] > 60:
         _CN_SPOT_CACHE = (now, ak.stock_zh_a_spot())
-    df = _CN_SPOT_CACHE[1]
+    return _CN_SPOT_CACHE[1]
+
+
+def _cn_realtime_quote(code: str) -> RealtimeQuote | None:
+    """Best-effort A-share real-time quote from akshare stock_zh_a_spot.
+
+    The endpoint downloads the whole A-share table and is relatively slow, so
+    cache it for 60 seconds per process.
+    """
+    df = get_cn_spot()
     target = df[df["代码"].astype(str).str.contains(code, na=False)]
     if target.empty:
         return None

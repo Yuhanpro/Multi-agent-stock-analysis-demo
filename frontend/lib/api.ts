@@ -262,3 +262,40 @@ export async function fetchFinancials(ticker: string, market: Market): Promise<F
   const url = `${API_BASE}/api/financials?ticker=${encodeURIComponent(ticker)}&market=${market}`;
   return readJsonOrThrow(await fetch(url));
 }
+
+// ---------- market overview -------------------------------------------------
+
+export interface HotIndustry {
+  name: string;
+  change_pct: number | null;
+  amount: number | null;
+  num_companies: number | null;
+  leader_name: string | null;
+  leader_change: number | null;
+}
+
+export interface HotCompany {
+  code: string;
+  name: string;
+  market: Market;
+  price: number | null;
+  change_pct: number | null;
+  amount: number | null;
+}
+
+export interface SiteTop {
+  ticker: string;
+  market: Market;
+  count: number;
+}
+
+export interface MarketOverview {
+  hot_industries: HotIndustry[];
+  hot_companies: HotCompany[];
+  site_top: SiteTop[];
+  source: string;
+}
+
+export async function fetchMarketOverview(): Promise<MarketOverview> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/market-overview`));
+}
