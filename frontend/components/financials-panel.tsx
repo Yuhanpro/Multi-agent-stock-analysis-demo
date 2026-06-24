@@ -21,14 +21,14 @@ interface Props {
   market: Market;
 }
 
-// Curated blue-family palette so the charts stay cohesive and on-theme,
-// independent of the bull/bear (green/red) semantic colors.
+// McKinsey-inspired blue palette (deep blue + cyan/teal accents), tuned to stay
+// visible on the dark graphite theme. Independent of bull/bear semantic colors.
 const CHART = {
-  revenue: "#2563eb",   // strong blue
-  netIncome: "#38bdf8", // sky blue (distinct from revenue)
-  gross: "#3b82f6",     // blue
-  net: "#06b6d4",       // cyan
-  roe: "#818cf8",       // indigo
+  revenue: "#1f57b8",   // McKinsey deep blue
+  netIncome: "#00a9f4", // McKinsey cyan-blue
+  gross: "#2251ff",     // electric blue
+  net: "#00c2de",       // teal / cyan
+  roe: "#7cb3ff",       // sky blue
 };
 
 function scaleInfo(currency: string | null, zh: boolean) {
@@ -190,7 +190,7 @@ export function FinancialsPanel({ ticker, market }: Props) {
                 {fin.annual.map((p) => {
                   const v = get(p);
                   return (
-                    <td key={p.period} className="px-2 py-1">
+                    <td key={p.period} className="px-2 py-1 font-semibold text-heading">
                       {v != null ? (v / div).toFixed(1) : "—"}
                     </td>
                   );
