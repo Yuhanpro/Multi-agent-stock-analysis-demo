@@ -13,6 +13,7 @@ export function AuthForm({ onDone }: { onDone?: () => void }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -21,7 +22,7 @@ export function AuthForm({ onDone }: { onDone?: () => void }) {
     setBusy(true);
     setErr(null);
     try {
-      if (isRegister) await register(email.trim(), password);
+      if (isRegister) await register(email.trim(), password, invite.trim() || undefined);
       else await login(email.trim(), password);
       onDone?.();
     } catch (e: unknown) {
@@ -55,6 +56,15 @@ export function AuthForm({ onDone }: { onDone?: () => void }) {
         placeholder={t("auth.password")}
         className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent/70"
       />
+      {isRegister && (
+        <input
+          type="text"
+          value={invite}
+          onChange={(e) => setInvite(e.target.value.toUpperCase())}
+          placeholder={t("auth.invite")}
+          className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm uppercase outline-none focus:border-accent/70"
+        />
+      )}
       {err && <div className="rounded-lg border border-bear/40 bg-bear/10 px-3 py-2 text-xs text-bear">{err}</div>}
       <button
         type="submit"

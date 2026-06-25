@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routes import (
+    admin,
     auth,
     debate,
     financials,
@@ -16,6 +17,7 @@ from app.routes import (
     reports,
     snapshot,
     symbol_search,
+    track,
     watchlist,
 )
 from app.services import budget, db
@@ -50,6 +52,8 @@ app.include_router(debate.router, prefix="/api", tags=["debate"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])
 app.include_router(symbol_search.router, prefix="/api", tags=["symbol-search"])
+app.include_router(track.router, prefix="/api", tags=["track"])
+app.include_router(admin.router, prefix="/api", tags=["admin"])
 
 
 @app.get("/healthz")

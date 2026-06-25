@@ -151,6 +151,7 @@ export interface User {
   id: number;
   email: string;
   created_at: string;
+  is_admin: boolean;
 }
 
 export interface AuthResponse {
@@ -175,12 +176,12 @@ export interface Report extends ReportMeta {
   content: string;
 }
 
-export async function registerApi(email: string, password: string): Promise<AuthResponse> {
+export async function registerApi(email: string, password: string, inviteCode?: string): Promise<AuthResponse> {
   return readJsonOrThrow(
     await fetch(`${API_BASE}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, invite_code: inviteCode || null }),
     })
   );
 }
@@ -298,4 +299,75 @@ export interface MarketOverview {
 
 export async function fetchMarketOverview(market: Market = "CN"): Promise<MarketOverview> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/market-overview?market=${market}`));
+}
+
+// ---------- admin + tracking ------------------------------------------------
+
+export interface InviteCode {
+  code: string;
+  note: string;
+  max_uses: number;
+  uses: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface PathHit { path: string; count: number; }
+export interface DailyPoint { date: string; views: number; visitors: number; }
+
+export interface AdminStats {
+  total_views: number;
+  today_views: number;
+  total_visitors: number;
+  today_visitors: number;
+  total_users: number;
+  top_paths: PathHit[];
+  daily: DailyPoint[];
+}
+
+export interface SessionPath {
+  anon_id: string;
+  last_seen: string;
+  user_email: string | null;
+  paths: string[];
+}
+
+export async function fetchInvites(): Promise<InviteCode[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/invites`, { headers: authHeaders() }));
+}
+
+export async function createInvites(count: number, note: string, max_uses: number): Promise<InviteCode[]> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/admin/invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ count, note, max_uses }),
+    })
+  );
+}
+
+export async function revokeInvite(code: string): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/admin/invites/${encodeURIComponent(code)}`, { method: "DELETE", headers: authHeaders() })
+  );
+}
+
+export async function fetchAdminStats(): Promise<AdminStats> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/stats`, { headers: authHeaders() }));
+}
+
+export async function fetchAdminPaths(): Promise<SessionPath[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/paths`, { headers: authHeaders() }));
+}
+
+export function trackEvent(anonId: string, path: string): void {
+  // Fire-and-forget; never block navigation or throw.
+  try {
+    fetch(`${API_BASE}/api/track`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ anon_id: anonId, path }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
 }

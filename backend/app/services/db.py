@@ -21,8 +21,28 @@ CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     email         TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    is_admin      INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS invite_codes (
+    code       TEXT PRIMARY KEY,
+    note       TEXT NOT NULL DEFAULT '',
+    max_uses   INTEGER NOT NULL DEFAULT 1,
+    uses       INTEGER NOT NULL DEFAULT 0,
+    active      INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    anon_id    TEXT NOT NULL,
+    user_id    INTEGER,
+    path       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
+CREATE INDEX IF NOT EXISTS idx_events_anon ON events(anon_id, created_at);
 
 CREATE TABLE IF NOT EXISTS reports (
     id         TEXT PRIMARY KEY,
@@ -76,6 +96,9 @@ def init_db() -> None:
         cols = {r["name"] for r in _conn.execute("PRAGMA table_info(reports)").fetchall()}
         if "is_public" not in cols:
             _conn.execute("ALTER TABLE reports ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0")
+        ucols = {r["name"] for r in _conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "is_admin" not in ucols:
+            _conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
         _conn.commit()
 
 

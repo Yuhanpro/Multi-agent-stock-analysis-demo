@@ -72,6 +72,7 @@ class Settings:
     quick_think_llm: str
     db_path: str
     jwt_secret: str
+    admin_emails: list[str]
 
     @property
     def has_redis(self) -> bool:
@@ -97,4 +98,5 @@ def get_settings() -> Settings:
         quick_think_llm=os.getenv("QUICK_THINK_LLM", "deepseek-v4-flash"),
         db_path=os.getenv("DB_PATH", str(DATA_DIR / "stock-web.db")),
         jwt_secret=_resolve_jwt_secret(),
+        admin_emails=[e.strip().lower() for e in _split_csv(os.getenv("ADMIN_EMAILS"), []) if e.strip()],
     )

@@ -32,6 +32,7 @@ class User(BaseModel):
     id: int
     email: str
     created_at: str
+    is_admin: bool = False
 
 
 # ---------- password hashing ------------------------------------------------
@@ -94,14 +95,20 @@ def verify_token(token: str) -> dict | None:
 
 
 def _row_to_user(row) -> User:
-    return User(id=row["id"], email=row["email"], created_at=row["created_at"])
+    is_admin = bool(row["is_admin"]) or (str(row["email"]).lower() in get_settings().admin_emails)
+    return User(id=row["id"], email=row["email"], created_at=row["created_at"], is_admin=is_admin)
+
+
+def user_count() -> int:
+    row = db.query_one("SELECT COUNT(*) AS c FROM users")
+    return int(row["c"]) if row else 0
 
 
 def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-def create_user(email: str, password: str) -> User:
+def create_user(email: str, password: str, is_admin: bool = False) -> User:
     email = normalize_email(email)
     if not _EMAIL_RE.match(email):
         raise ValueError("邮箱格式不正确")
@@ -110,8 +117,8 @@ def create_user(email: str, password: str) -> User:
     if db.query_one("SELECT id FROM users WHERE email = ?", (email,)) is not None:
         raise ValueError("该邮箱已注册")
     cur = db.execute(
-        "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
-        (email, hash_password(password), datetime.now(timezone.utc).isoformat()),
+        "INSERT INTO users (email, password_hash, created_at, is_admin) VALUES (?, ?, ?, ?)",
+        (email, hash_password(password), datetime.now(timezone.utc).isoformat(), 1 if is_admin else 0),
     )
     row = db.query_one("SELECT * FROM users WHERE id = ?", (cur.lastrowid,))
     return _row_to_user(row)
@@ -158,4 +165,11 @@ def get_current_user(request: Request) -> User:
     user = user_from_request(request)
     if user is None:
         raise HTTPException(status_code=401, detail="需要登录")
+    return user
+
+
+def get_current_admin(request: Request) -> User:
+    user = get_current_user(request)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="需要管理员权限")
     return user

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart2, Clock, Flame, Menu, Star, Stethoscope, X } from "lucide-react";
+import { Activity, BarChart2, Clock, Flame, Menu, Shield, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth";
+import { track } from "@/lib/track";
 import { cn } from "@/lib/format";
 import { AuthWidget } from "./auth-widget";
 import { LanguageSwitcher } from "./language-switcher";
@@ -19,6 +21,9 @@ const NAV = [
 
 function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { t } = useT();
+  const { user } = useAuth();
+  const items = [...NAV];
+  if (user?.is_admin) items.push({ href: "/admin", icon: Shield, key: "nav.admin" as const });
   return (
     <div className="flex h-full flex-col">
       <Link href="/" onClick={onNavigate} className="flex items-center gap-2 px-4 py-4 text-accent">
@@ -26,7 +31,7 @@ function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: 
         <span className="text-sm font-semibold">{t("hero.eyebrow")}</span>
       </Link>
       <nav className="flex-1 space-y-1 px-2">
-        {NAV.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
           return (
@@ -40,7 +45,7 @@ function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: 
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{t(item.key)}</span>
+              <span className="truncate">{t(item.key as never)}</span>
             </Link>
           );
         })}
@@ -52,6 +57,11 @@ function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // Record a page view on every route change (fire-and-forget).
+  useEffect(() => {
+    track(pathname);
+  }, [pathname]);
 
   return (
     <div className="flex min-h-screen">
