@@ -11,19 +11,21 @@ import { cn } from "@/lib/format";
 import { AuthWidget } from "./auth-widget";
 import { LanguageSwitcher } from "./language-switcher";
 
-const NAV = [
-  { href: "/", icon: BarChart2, key: "nav.analyze" as const },
-  { href: "/overview", icon: Flame, key: "nav.overview" as const },
-  { href: "/diagnose", icon: Stethoscope, key: "nav.diagnose" as const },
-  { href: "/watchlist", icon: Star, key: "nav.watchlist" as const },
-  { href: "/reports", icon: Clock, key: "nav.reports" as const },
+type NavItem = { href: string; icon: typeof Flame; key: string };
+
+const NAV: NavItem[] = [
+  { href: "/", icon: BarChart2, key: "nav.analyze" },
+  { href: "/overview", icon: Flame, key: "nav.overview" },
+  { href: "/diagnose", icon: Stethoscope, key: "nav.diagnose" },
+  { href: "/watchlist", icon: Star, key: "nav.watchlist" },
+  { href: "/reports", icon: Clock, key: "nav.reports" },
 ];
 
 function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { t } = useT();
   const { user } = useAuth();
-  const items = [...NAV];
-  if (user?.is_admin) items.push({ href: "/admin", icon: Shield, key: "nav.admin" as const });
+  const items: NavItem[] = [...NAV];
+  if (user?.is_admin) items.push({ href: "/admin", icon: Shield, key: "nav.admin" });
   return (
     <div className="flex h-full flex-col">
       <Link href="/" onClick={onNavigate} className="flex items-center gap-2 px-4 py-4 text-accent">
