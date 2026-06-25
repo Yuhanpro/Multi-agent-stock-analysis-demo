@@ -165,6 +165,16 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-06-25 — 邀请码注册 + 管理员后台 + 访问/路径埋点
+
+交付内容:
+
+- **邀请码注册门槛** —— `invite_codes` 表(code/note/max_uses/uses/active);**第一个注册的账号免码且自动成为管理员**(`is_admin`),之后所有注册必须带有效邀请码(单次消费,可设次数上限)。注册框加邀请码字段。`config` 加 `ADMIN_EMAILS`(可额外指定管理员)。
+- **访问/路径埋点** —— `events` 表(anon_id/user_id/path/created_at);前端 `lib/track` 在每次路由变化发 `/api/track`(匿名 id 存 localStorage)。
+- **管理员后台 `/admin`(仅管理员可见导航)** —— 访问数据(访问次数、独立访客、注册数,今日+累计)+ 热门页面 + 邀请码管理(批量生成/复制/停用/已用统计)+ 最近用户路径(按会话的页面访问序列)。后端 `/api/admin/{invites,stats,paths}` 经 `get_current_admin` 守卫。
+- **部署** —— 清空 prod 测试账号(确保 owner 为第一个注册=管理员);迁移建 `invite_codes/events` 表 + `users.is_admin`。验证:埋点 200、admin 接口无 token 401、TestClient 全流程(首注册管理员、邀请门槛、单次消费、非管理员 403)通过。
+- **遗留** —— 单 worker + db 锁,邀请码消费非严格原子(小规模邀请可忽略);未做防刷/去重(同一访客多次切页都会计一次 PV)。
+
 ### 2026-06-25 — 市场热度概览页 /overview
 
 交付内容:
