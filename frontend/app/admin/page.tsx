@@ -116,7 +116,51 @@ function Overview({ stats }: { stats: AdminStats }) {
         <StatCard label={`${t("admin.new")} (${t("admin.today")})`} value={stats.new_today} tone="bull" />
         <StatCard label={`${t("admin.returning")} (${t("admin.today")})`} value={stats.returning_today} tone="accent" />
       </div>
+      <PeriodTable stats={stats} />
       <TrendChart stats={stats} />
+    </div>
+  );
+}
+
+function PeriodTable({ stats }: { stats: AdminStats }) {
+  const { t } = useT();
+  const d = stats.daily; // newest first, 30 days
+  const win = (n: number, key: keyof (typeof d)[number]) => d.slice(0, n).reduce((a, x) => a + (Number(x[key]) || 0), 0);
+  const at = (i: number, key: keyof (typeof d)[number]) => Number(d[i]?.[key] ?? 0);
+  const money = (v: number) => `$${v.toFixed(3)}`;
+  const rows: { label: string; key: "views" | "runs" | "signups" | "cost"; total: number; fmt?: (v: number) => string }[] = [
+    { label: t("admin.views"), key: "views", total: stats.total_views },
+    { label: t("admin.runs"), key: "runs", total: stats.runs_total },
+    { label: t("admin.signups"), key: "signups", total: stats.total_users },
+    { label: t("admin.cost"), key: "cost", total: stats.cost_total || 0, fmt: money },
+  ];
+  const cols = [t("admin.today"), t("admin.yesterday"), t("admin.last7"), t("admin.last30"), t("admin.total")];
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface p-4">
+      <div className="mb-2 text-sm font-semibold text-heading">{t("admin.period")}</div>
+      <table className="w-full text-right text-xs">
+        <thead>
+          <tr className="text-muted">
+            <th className="py-1 pr-3 text-left font-medium"></th>
+            {cols.map((c) => <th key={c} className="px-2 py-1 font-medium">{c}</th>)}
+          </tr>
+        </thead>
+        <tbody className="tabular-nums">
+          {rows.map((r) => {
+            const f = r.fmt ?? ((v: number) => String(Math.round(v)));
+            return (
+              <tr key={r.key} className="border-t border-border/40">
+                <td className="py-1 pr-3 text-left text-muted">{r.label}</td>
+                <td className="px-2 py-1 font-semibold text-heading">{f(at(0, r.key))}</td>
+                <td className="px-2 py-1 text-body">{f(at(1, r.key))}</td>
+                <td className="px-2 py-1 text-body">{f(win(7, r.key))}</td>
+                <td className="px-2 py-1 text-body">{f(win(30, r.key))}</td>
+                <td className="px-2 py-1 font-semibold text-accent">{f(r.total)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

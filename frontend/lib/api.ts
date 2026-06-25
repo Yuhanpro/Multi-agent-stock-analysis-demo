@@ -313,7 +313,7 @@ export interface InviteCode {
 }
 
 export interface PathHit { path: string; count: number; }
-export interface DailyPoint { date: string; views: number; visitors: number; }
+export interface DailyPoint { date: string; views: number; visitors: number; runs: number; signups: number; cost: number; }
 export interface ModeCount { mode: string; count: number; }
 export interface TickerHit { ticker: string; market: Market; count: number; }
 export interface SignupPoint { date: string; count: number; }

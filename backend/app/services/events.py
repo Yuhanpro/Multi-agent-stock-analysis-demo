@@ -1,7 +1,7 @@
 """Lightweight page-view tracking + admin analytics aggregations."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel
 
@@ -15,8 +15,11 @@ class PathHit(BaseModel):
 
 class DailyPoint(BaseModel):
     date: str
-    views: int
-    visitors: int
+    views: int = 0
+    visitors: int = 0
+    runs: int = 0
+    signups: int = 0
+    cost: float = 0.0
 
 
 class ModeCount(BaseModel):
@@ -108,12 +111,24 @@ def get_stats() -> Stats:
         PathHit(path=r["path"], count=r["c"])
         for r in db.query_all("SELECT path, COUNT(*) AS c FROM events GROUP BY path ORDER BY c DESC LIMIT 12")
     ]
+    # 30-day daily series with every metric (events + reports + users), zero-filled
+    # so the chart/period table have a continuous history, newest first.
+    now = datetime.now(timezone.utc)
+    day_list = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
+    ev = {r["d"]: (r["v"], r["u"]) for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS v, COUNT(DISTINCT anon_id) AS u FROM events GROUP BY d")}
+    rp = {r["d"]: (r["c"], r["cost"]) for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c, COALESCE(SUM(cost_usd),0) AS cost FROM reports GROUP BY d")}
+    su = {r["d"]: r["c"] for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users GROUP BY d")}
     s.daily = [
-        DailyPoint(date=r["d"], views=r["v"], visitors=r["u"])
-        for r in db.query_all(
-            "SELECT substr(created_at,1,10) AS d, COUNT(*) AS v, COUNT(DISTINCT anon_id) AS u "
-            "FROM events GROUP BY d ORDER BY d DESC LIMIT 14"
+        DailyPoint(
+            date=d,
+            views=ev.get(d, (0, 0))[0], visitors=ev.get(d, (0, 0))[1],
+            runs=rp.get(d, (0, 0))[0], cost=round(float(rp.get(d, (0, 0))[1] or 0), 4),
+            signups=su.get(d, 0),
         )
+        for d in day_list
     ]
     # Usage from saved reports (analysis runs + LLM spend).
     s.runs_total = _scalar("SELECT COUNT(*) FROM reports")
