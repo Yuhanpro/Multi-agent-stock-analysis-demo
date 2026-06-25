@@ -296,6 +296,6 @@ export interface MarketOverview {
   source: string;
 }
 
-export async function fetchMarketOverview(): Promise<MarketOverview> {
-  return readJsonOrThrow(await fetch(`${API_BASE}/api/market-overview`));
+export async function fetchMarketOverview(market: Market = "CN"): Promise<MarketOverview> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/market-overview?market=${market}`));
 }

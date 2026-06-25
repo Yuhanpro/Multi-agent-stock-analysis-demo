@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Flame, Loader2, TrendingUp } from "lucide-react";
-import { fetchMarketOverview, type MarketOverview } from "@/lib/api";
+import { fetchMarketOverview, type Market, type MarketOverview } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
+
+const MARKETS: Market[] = ["CN", "US", "HK"];
 
 function yi(v: number | null): string {
   if (v == null) return "—";
@@ -21,16 +23,20 @@ function tone(v: number | null): string {
 
 export default function OverviewPage() {
   const { t } = useT();
+  const [market, setMarket] = useState<Market>("CN");
   const [data, setData] = useState<MarketOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchMarketOverview()
+    setLoading(true);
+    setError(null);
+    setData(null);
+    fetchMarketOverview(market)
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [market]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -40,7 +46,21 @@ export default function OverviewPage() {
           <span className="text-sm font-semibold">{t("ov.title")}</span>
         </div>
         <p className="max-w-2xl text-sm leading-6 text-body">{t("ov.lead")}</p>
-        <p className="text-[11px] leading-4 text-muted/70">{t("ov.proxy")}</p>
+        <p className="text-[11px] leading-4 text-muted/70">{market === "CN" ? t("ov.proxy") : t("ov.ushkNote")}</p>
+        <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
+          {MARKETS.map((m) => (
+            <button
+              key={m}
+              onClick={() => setMarket(m)}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                market === m ? "bg-accent text-white" : "text-muted hover:text-heading"
+              )}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </header>
 
       {loading ? (
@@ -52,12 +72,10 @@ export default function OverviewPage() {
         <div className="mt-6 rounded-lg border border-bear/40 bg-bear/10 px-4 py-3 text-sm text-bear">{error}</div>
       ) : data ? (
         <div className="mt-6 space-y-8">
-          {/* Hot industries */}
-          <section>
-            <h2 className="mb-3 text-sm font-semibold text-heading">{t("ov.industries")}</h2>
-            {data.hot_industries.length === 0 ? (
-              <p className="text-sm text-muted">{t("ov.empty")}</p>
-            ) : (
+          {/* Hot industries (CN only) */}
+          {data.hot_industries.length > 0 && (
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-heading">{t("ov.industries")}</h2>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {data.hot_industries.map((ind, i) => (
                   <div key={ind.name + i} className="rounded-lg border border-border bg-surface/70 p-3">
@@ -74,12 +92,12 @@ export default function OverviewPage() {
                   </div>
                 ))}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
           {/* Most-active companies */}
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-heading">{t("ov.companies")}</h2>
+            <h2 className="mb-3 text-sm font-semibold text-heading">{market === "CN" ? t("ov.companies") : t("ov.companiesMajor")}</h2>
             <div className="overflow-hidden rounded-xl border border-border bg-surface">
               <div className="divide-y divide-border/60">
                 {data.hot_companies.map((c, i) => (

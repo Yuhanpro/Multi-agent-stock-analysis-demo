@@ -102,6 +102,8 @@ export function FinancialsPanel({ ticker, market }: Props) {
   const axis = { fill: "hsl(var(--theme-muted))", fontSize: 10 };
 
   const hasMargins = series.some((s) => s.grossMargin != null || s.netMargin != null || s.roe != null);
+  // Table follows the chart's time order (oldest → newest, left to right).
+  const annualAsc = [...fin.annual].reverse();
 
   return (
     <div className="space-y-4 rounded-xl border border-border bg-surface/80 p-5">
@@ -182,7 +184,7 @@ export function FinancialsPanel({ ticker, market }: Props) {
           <thead>
             <tr className="text-muted">
               <th className="py-1 pr-3 text-left font-semibold text-heading">{zh ? "年报" : "Annual"}</th>
-              {fin.annual.map((p) => (
+              {annualAsc.map((p) => (
                 <th key={p.period} className="px-2 py-1 font-mono font-semibold text-heading">{p.period}</th>
               ))}
             </tr>
@@ -197,7 +199,7 @@ export function FinancialsPanel({ ticker, market }: Props) {
             ] as [string, (p: FinPeriod) => number | null][]).map(([label, get]) => (
               <tr key={label} className="border-t border-border/40">
                 <td className="py-1 pr-3 text-left font-semibold text-body">{label}</td>
-                {fin.annual.map((p) => {
+                {annualAsc.map((p) => {
                   const v = get(p);
                   return (
                     <td key={p.period} className="px-2 py-1 font-semibold text-heading">
