@@ -176,6 +176,8 @@ stock-web/
   - 本站今日热门 = `reports` 表按 `created_at` 当日 GROUP BY ticker 统计。
 - **数据源取舍(VPS 现实)** —— 真·人气榜 / 百度热搜走 `push2.eastmoney.com`,该主机在 VPS 上 `RemoteDisconnected`(与 `stock_individual_info_em` 同),故改用**新浪源做热度代理**(板块表现 + 成交额),页面已明确标注口径。`market_data` 抽出共享 `get_cn_spot()`(60s 缓存),实时行情与热度复用。
 - **验证** —— 公网实测 200(首次 ~20s 含现货表下载):12 行业 / 20 公司 / 本站 Top;数值真实(化纤/家具领涨、兆易创新涨停、立讯精密 +8.2%)。
+- **多市场(后续补)** —— 概览页加 CN/US/HK 切换。US/HK 的全市场/人气榜端点走 `push2.eastmoney`,VPS 不可达,sina 全表又超时;故 US/HK 改用 **sina 日线对一组知名股(各 12 只)取今日涨跌**(`stock_us_daily`/`stock_hk_daily`,可靠),行业仅 A 股;页面标注口径。实测 US 6.2s / HK 4.2s,数值真实(TSMC/腾讯领涨)。`market_data` 抽出共享 `get_cn_spot()`。
+- **财务趋势表格**改为按图表时间顺序(旧→新)排列,与柱状/折线左右对齐。
 
 ### 2026-06-24 — 持仓诊断页(反锚定的仓位建议)
 
