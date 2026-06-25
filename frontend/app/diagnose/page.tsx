@@ -8,6 +8,7 @@ import { FinancialsPanel } from "@/components/financials-panel";
 import { QuickResult } from "@/components/quick-result";
 import { fetchSnapshot, type Market, type Snapshot } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { track } from "@/lib/track";
 import { cn, fmtPct, fmtPrice } from "@/lib/format";
 
 interface Run {
@@ -35,6 +36,7 @@ export default function DiagnosePage() {
       setError(t("diag.needCost"));
       return;
     }
+    track("run:diagnose");
     setLoading(true);
     setError(null);
     setSnapshot(null);

@@ -30,6 +30,22 @@ class TickerHit(BaseModel):
     count: int
 
 
+class SignupPoint(BaseModel):
+    date: str
+    count: int
+
+
+class HourPoint(BaseModel):
+    hour: int
+    count: int
+
+
+class UserActivity(BaseModel):
+    email: str
+    runs: int
+    last_seen: str | None = None
+
+
 class Stats(BaseModel):
     total_views: int = 0
     today_views: int = 0
@@ -43,10 +59,17 @@ class Stats(BaseModel):
     cost_total: float = 0.0
     runs_by_mode: list[ModeCount] = []
     top_tickers: list[TickerHit] = []
+    clicks_by_mode: list[ModeCount] = []
     # invite funnel
     invites_total: int = 0
     invites_used: int = 0
     invites_active: int = 0
+    # audience
+    new_today: int = 0
+    returning_today: int = 0
+    signups_daily: list[SignupPoint] = []
+    hourly: list[HourPoint] = []
+    top_users: list[UserActivity] = []
 
 
 class SessionPath(BaseModel):
@@ -106,10 +129,45 @@ def get_stats() -> Stats:
             "SELECT ticker, market, COUNT(*) AS c FROM reports GROUP BY ticker, market ORDER BY c DESC LIMIT 10"
         )
     ]
+    # Analysis-trigger clicks (events logged as run:<mode>, incl. snapshot;
+    # counts every click regardless of login, unlike saved-report runs).
+    s.clicks_by_mode = [
+        ModeCount(mode=r["m"], count=r["c"])
+        for r in db.query_all(
+            "SELECT replace(path, 'run:', '') AS m, COUNT(*) AS c FROM events "
+            "WHERE path LIKE 'run:%' GROUP BY path ORDER BY c DESC"
+        )
+    ]
+
     # Invite funnel.
     s.invites_total = _scalar("SELECT COUNT(*) FROM invite_codes")
     s.invites_used = _scalar("SELECT COALESCE(SUM(uses), 0) FROM invite_codes")
     s.invites_active = _scalar("SELECT COUNT(*) FROM invite_codes WHERE active = 1 AND uses < max_uses")
+
+    # Audience: new vs returning (by first-seen date), signups, hour-of-day (CN
+    # time, UTC+8), and per-user activity.
+    s.new_today = _scalar(
+        "SELECT COUNT(*) FROM (SELECT anon_id, MIN(created_at) AS m FROM events GROUP BY anon_id) "
+        "WHERE substr(m,1,10) = ?", (today,),
+    )
+    s.returning_today = max(0, s.today_visitors - s.new_today)
+    s.signups_daily = [
+        SignupPoint(date=r["d"], count=r["c"])
+        for r in db.query_all("SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users GROUP BY d ORDER BY d DESC LIMIT 14")
+    ]
+    hours = {int(r["h"]): r["c"] for r in db.query_all(
+        "SELECT (CAST(substr(created_at,12,2) AS INTEGER)+8)%24 AS h, COUNT(*) AS c FROM events GROUP BY h"
+    )}
+    s.hourly = [HourPoint(hour=h, count=hours.get(h, 0)) for h in range(24)]
+    s.top_users = [
+        UserActivity(email=r["email"], runs=r["runs"], last_seen=r["last"])
+        for r in db.query_all(
+            "SELECT u.email, "
+            "(SELECT COUNT(*) FROM reports r WHERE r.user_id = u.id) AS runs, "
+            "(SELECT MAX(created_at) FROM events e WHERE e.user_id = u.id) AS last "
+            "FROM users u ORDER BY runs DESC, u.id LIMIT 10"
+        )
+    ]
     return s
 
 

@@ -9,6 +9,7 @@ import { QuickResult } from "@/components/quick-result";
 import { DebateStream } from "@/components/debate-stream";
 import { fetchSnapshot, type Market, type Snapshot } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { track } from "@/lib/track";
 import { cn } from "@/lib/format";
 
 type Mode = "snapshot" | "quick" | "serenity" | "debate";
@@ -27,6 +28,25 @@ const MODE_DEFS: { id: Mode; icon: JSX.Element; labelKey: string; hintKey: strin
   { id: "serenity", icon: <Network className="h-3.5 w-3.5" />,   labelKey: "mode.serenity.label", hintKey: "mode.serenity.hint" },
   { id: "debate",   icon: <Users className="h-3.5 w-3.5" />,     labelKey: "mode.debate.label",   hintKey: "mode.debate.hint" },
 ];
+
+const MODE_INTROS: Record<Mode, { en: string; zh: string }> = {
+  snapshot: {
+    en: "Click Snapshot to view price, fundamentals, financials, and chart data without using the LLM.",
+    zh: "点击行情快照：查看价格、基本面、财务指标和 K 线，不调用 LLM。",
+  },
+  quick: {
+    en: "Click Buffett Quick for a value-style read on valuation, business quality, and risks.",
+    zh: "点击巴菲特速评：从估值、企业质量和风险角度快速判断。",
+  },
+  serenity: {
+    en: "Click Serenity Scan to look for supply-chain pressure, bottlenecks, and industry signals.",
+    zh: "点击 Serenity 扫描：寻找供应链压力、瓶颈和产业信号。",
+  },
+  debate: {
+    en: "Click Multi-Agent Debate to let analysts, bull/bear researchers, trader, and risk committee debate the final view.",
+    zh: "点击多 agent 辩论：让分析师、多空研究员、交易员和风险委员会共同形成观点。",
+  },
+};
 
 export default function Page() {
   const { t, lang } = useT();
@@ -74,6 +94,7 @@ export default function Page() {
   }, []);
 
   async function handleSubmit(ticker: string, market: Market, modeOverride: Mode = mode) {
+    track(`run:${modeOverride}`);
     setSnapshotLoading(true);
     setSnapshotError(null);
     setSnapshot(null);
@@ -130,6 +151,14 @@ export default function Page() {
                 {m.icon}
                 <span className="truncate">{t(m.labelKey as any)}</span>
               </button>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-2 border-t border-border/60 px-1.5 pt-3 text-xs leading-5 text-body sm:grid-cols-2">
+            {MODE_DEFS.map((m) => (
+              <div key={m.id} className="flex gap-2">
+                <span className="mt-[0.7em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent/80" />
+                <span>{MODE_INTROS[m.id][lang]}</span>
+              </div>
             ))}
           </div>
           <div className="mt-3 flex items-start gap-2 border-t border-border/60 px-1.5 pt-3 text-xs leading-5 text-muted">

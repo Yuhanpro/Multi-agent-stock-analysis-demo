@@ -316,6 +316,9 @@ export interface PathHit { path: string; count: number; }
 export interface DailyPoint { date: string; views: number; visitors: number; }
 export interface ModeCount { mode: string; count: number; }
 export interface TickerHit { ticker: string; market: Market; count: number; }
+export interface SignupPoint { date: string; count: number; }
+export interface HourPoint { hour: number; count: number; }
+export interface UserActivity { email: string; runs: number; last_seen: string | null; }
 
 export interface AdminStats {
   total_views: number;
@@ -329,9 +332,15 @@ export interface AdminStats {
   cost_total: number;
   runs_by_mode: ModeCount[];
   top_tickers: TickerHit[];
+  clicks_by_mode: ModeCount[];
   invites_total: number;
   invites_used: number;
   invites_active: number;
+  new_today: number;
+  returning_today: number;
+  signups_daily: SignupPoint[];
+  hourly: HourPoint[];
+  top_users: UserActivity[];
 }
 
 export interface SessionPath {

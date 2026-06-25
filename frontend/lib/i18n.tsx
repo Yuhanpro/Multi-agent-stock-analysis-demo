@@ -136,6 +136,16 @@ const DICT = {
     "admin.invTotal": "Generated",
     "admin.invUsed": "Used",
     "admin.invActive": "Active",
+    "admin.tab.overview": "Overview",
+    "admin.tab.traffic": "Traffic",
+    "admin.tab.usage": "Usage",
+    "admin.tab.paths": "Paths",
+    "admin.new": "New",
+    "admin.returning": "Returning",
+    "admin.signups": "New sign-ups",
+    "admin.hourly": "By hour (UTC+8)",
+    "admin.clicks": "Analysis clicks",
+    "admin.topUsers": "User activity",
     "ov.title": "Market Heat",
     "ov.lead": "Today's A-share sector performance, the most-traded companies, and what stock-web users analyzed most today.",
     "ov.industries": "Hot Industries (today)",
@@ -304,6 +314,16 @@ const DICT = {
     "admin.invTotal": "已生成",
     "admin.invUsed": "已用",
     "admin.invActive": "可用",
+    "admin.tab.overview": "概览",
+    "admin.tab.traffic": "流量",
+    "admin.tab.usage": "使用",
+    "admin.tab.paths": "路径",
+    "admin.new": "新访客",
+    "admin.returning": "回访",
+    "admin.signups": "新增注册",
+    "admin.hourly": "时段分布(北京时间)",
+    "admin.clicks": "分析点击",
+    "admin.topUsers": "用户活跃度",
     "ov.title": "市场热度",
     "ov.lead": "今日 A 股板块表现、成交最活跃的公司,以及本站今日分析最多的票。",
     "ov.industries": "热门行业(今日板块)",
@@ -384,7 +404,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<I18nCtx>(() => {
-    const dict = DICT[lang];
+    const dict = DICT[lang] as Record<string, string>;
     return {
       lang,
       setLang,
