@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Check, Copy, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
   createInvites,
@@ -35,8 +36,40 @@ export default function AdminPage() {
   );
 }
 
+function modeLabel(mode: string, zh: boolean): string {
+  const m: Record<string, [string, string]> = {
+    quick: ["巴菲特速评", "Buffett"],
+    serenity: ["Serenity", "Serenity"],
+    debate: ["多智能体辩论", "Debate"],
+    diagnose: ["持仓诊断", "Diagnosis"],
+  };
+  const hit = m[mode];
+  return hit ? (zh ? hit[0] : hit[1]) : mode;
+}
+
+function ListCard({ title, rows, mono }: { title: string; rows: { k: string; v: number }[]; mono?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="mb-2 text-sm font-semibold text-heading">{title}</div>
+      {rows.length === 0 ? (
+        <div className="text-xs text-muted">—</div>
+      ) : (
+        <div className="space-y-1">
+          {rows.map((r) => (
+            <div key={r.k} className="flex items-center justify-between gap-3 text-xs">
+              <span className={cn("truncate text-body", mono && "font-mono")}>{r.k}</span>
+              <span className="font-semibold text-heading">{r.v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const zh = lang === "zh";
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [invites, setInvites] = useState<InviteCode[]>([]);
   const [paths, setPaths] = useState<SessionPath[]>([]);
@@ -62,23 +95,58 @@ function Dashboard() {
         <RefreshCw className="h-3.5 w-3.5" /> refresh
       </button>
 
-      {/* Traffic */}
+      {/* Traffic + usage */}
       {stats && (
-        <section className="space-y-3">
-          <div className="grid grid-cols-3 gap-3">
+        <section className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <StatCard label={t("admin.views")} value={stats.total_views} sub={`${stats.today_views} ${t("admin.today")}`} />
             <StatCard label={t("admin.visitors")} value={stats.total_visitors} sub={`${stats.today_visitors} ${t("admin.today")}`} />
+            <StatCard label={t("admin.perVisitor")} value={stats.total_visitors ? Math.round((stats.total_views / stats.total_visitors) * 10) / 10 : 0} />
             <StatCard label={t("admin.users")} value={stats.total_users} />
+            <StatCard label={t("admin.runs")} value={stats.runs_total} />
+            <StatCard label={t("admin.cost")} value={`$${(stats.cost_total || 0).toFixed(3)}`} />
           </div>
-          {stats.top_paths.length > 0 && (
+
+          {/* Daily trend */}
+          {stats.daily.length > 1 && (
             <div className="rounded-xl border border-border bg-surface p-4">
-              <div className="mb-2 text-sm font-semibold text-heading">{t("admin.topPaths")}</div>
-              <div className="space-y-1">
-                {stats.top_paths.map((p) => (
-                  <div key={p.path} className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-body">{p.path}</span>
-                    <span className="font-semibold text-heading">{p.count}</span>
-                  </div>
+              <div className="mb-2 text-sm font-semibold text-heading">{t("admin.trend")}</div>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={[...stats.daily].reverse().map((d) => ({ date: d.date.slice(5), views: d.views, visitors: d.visitors }))}>
+                    <defs>
+                      <linearGradient id="adm-v" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--theme-chart-tooltip))", border: "1px solid hsl(var(--theme-chart-grid))", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "hsl(var(--theme-heading))" }} />
+                    <Area name="views" dataKey="views" stroke="#2563eb" strokeWidth={2} fill="url(#adm-v)" />
+                    <Area name="visitors" dataKey="visitors" stroke="#38bdf8" strokeWidth={2} fill="transparent" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Top pages + most analyzed */}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ListCard title={t("admin.topPaths")} rows={stats.top_paths.map((p) => ({ k: p.path, v: p.count }))} mono />
+            <ListCard title={t("admin.topTickers")} rows={stats.top_tickers.map((p) => ({ k: `${p.ticker} · ${p.market}`, v: p.count }))} mono />
+          </div>
+
+          {/* Usage by mode */}
+          {stats.runs_by_mode.length > 0 && (
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <div className="mb-2 text-sm font-semibold text-heading">{t("admin.byMode")}</div>
+              <div className="flex flex-wrap gap-2">
+                {stats.runs_by_mode.map((m) => (
+                  <span key={m.mode} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg/40 px-3 py-1 text-xs">
+                    <span className="text-body">{modeLabel(m.mode, zh)}</span>
+                    <span className="font-semibold text-accent">{m.count}</span>
+                  </span>
                 ))}
               </div>
             </div>
@@ -88,7 +156,14 @@ function Dashboard() {
 
       {/* Invite codes */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-heading">{t("admin.invites")}</h2>
+        <h2 className="mb-3 text-sm font-semibold text-heading">
+          {t("admin.invites")}
+          {stats && (
+            <span className="ml-3 text-xs font-normal text-muted">
+              {t("admin.invTotal")} {stats.invites_total} · {t("admin.invUsed")} {stats.invites_used} · {t("admin.invActive")} {stats.invites_active}
+            </span>
+          )}
+        </h2>
         <InviteGen onCreated={(c) => setInvites((x) => [...c, ...x])} />
         <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface">
           <div className="divide-y divide-border/60">
@@ -129,7 +204,7 @@ function Dashboard() {
   );
 }
 
-function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
+function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
     <div className="rounded-lg border border-border bg-surface/70 px-3 py-2.5">
       <div className="text-[11px] text-muted">{label}</div>

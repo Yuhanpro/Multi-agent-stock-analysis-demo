@@ -314,6 +314,8 @@ export interface InviteCode {
 
 export interface PathHit { path: string; count: number; }
 export interface DailyPoint { date: string; views: number; visitors: number; }
+export interface ModeCount { mode: string; count: number; }
+export interface TickerHit { ticker: string; market: Market; count: number; }
 
 export interface AdminStats {
   total_views: number;
@@ -323,6 +325,13 @@ export interface AdminStats {
   total_users: number;
   top_paths: PathHit[];
   daily: DailyPoint[];
+  runs_total: number;
+  cost_total: number;
+  runs_by_mode: ModeCount[];
+  top_tickers: TickerHit[];
+  invites_total: number;
+  invites_used: number;
+  invites_active: number;
 }
 
 export interface SessionPath {

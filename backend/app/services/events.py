@@ -19,6 +19,17 @@ class DailyPoint(BaseModel):
     visitors: int
 
 
+class ModeCount(BaseModel):
+    mode: str
+    count: int
+
+
+class TickerHit(BaseModel):
+    ticker: str
+    market: str
+    count: int
+
+
 class Stats(BaseModel):
     total_views: int = 0
     today_views: int = 0
@@ -27,6 +38,15 @@ class Stats(BaseModel):
     total_users: int = 0
     top_paths: list[PathHit] = []
     daily: list[DailyPoint] = []
+    # usage
+    runs_total: int = 0
+    cost_total: float = 0.0
+    runs_by_mode: list[ModeCount] = []
+    top_tickers: list[TickerHit] = []
+    # invite funnel
+    invites_total: int = 0
+    invites_used: int = 0
+    invites_active: int = 0
 
 
 class SessionPath(BaseModel):
@@ -72,6 +92,24 @@ def get_stats() -> Stats:
             "FROM events GROUP BY d ORDER BY d DESC LIMIT 14"
         )
     ]
+    # Usage from saved reports (analysis runs + LLM spend).
+    s.runs_total = _scalar("SELECT COUNT(*) FROM reports")
+    cost_row = db.query_one("SELECT COALESCE(SUM(cost_usd), 0) AS c FROM reports")
+    s.cost_total = round(float(cost_row["c"] or 0), 4) if cost_row else 0.0
+    s.runs_by_mode = [
+        ModeCount(mode=r["mode"], count=r["c"])
+        for r in db.query_all("SELECT mode, COUNT(*) AS c FROM reports GROUP BY mode ORDER BY c DESC")
+    ]
+    s.top_tickers = [
+        TickerHit(ticker=r["ticker"], market=r["market"], count=r["c"])
+        for r in db.query_all(
+            "SELECT ticker, market, COUNT(*) AS c FROM reports GROUP BY ticker, market ORDER BY c DESC LIMIT 10"
+        )
+    ]
+    # Invite funnel.
+    s.invites_total = _scalar("SELECT COUNT(*) FROM invite_codes")
+    s.invites_used = _scalar("SELECT COALESCE(SUM(uses), 0) FROM invite_codes")
+    s.invites_active = _scalar("SELECT COUNT(*) FROM invite_codes WHERE active = 1 AND uses < max_uses")
     return s
 
 
