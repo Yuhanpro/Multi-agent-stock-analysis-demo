@@ -236,12 +236,35 @@ def _build_hk_fund(code: str, r: dict) -> Fund:
     f.name = _str(r.get("基金简称")) or code
     cur = _str(r.get("币种"))
     f.type = f"香港互认 · {cur}" if cur else "香港互认基金"
-    f.strategy = "香港互认基金(通过内地代销渠道购买),数据来源东方财富香港基金排行。"
-    nav = _safe_float(r.get("单位净值"))
-    d = str(r.get("日期"))[:10]
-    if nav is not None:
-        f.nav = [NavPoint(date=d, nav=nav, growth=_safe_float(r.get("日增长率")))]
-    # rank columns are percent (近1年 114.26 → +114.26%); map to our return keys.
+    f.strategy = "香港互认基金(通过内地代销渠道购买),数据来源东方财富香港基金。"
+
+    # ---- NAV history via the HK fund code (not the 968 code) ----
+    hk_code = _str(r.get("香港基金代码"))
+    if hk_code:
+        try:
+            import akshare as ak
+
+            df = ak.fund_hk_fund_hist_em(code=hk_code, symbol="历史净值明细")
+            if df is not None and not df.empty:
+                cols = list(df.columns)  # 净值日期 / 单位净值 / 增长值 / 增长率 / 单位
+                pts = [
+                    NavPoint(
+                        date=str(x[cols[0]])[:10],
+                        nav=_safe_float(x[cols[1]]),
+                        growth=_safe_float(x[cols[3]]) if len(cols) > 3 else None,
+                    )
+                    for _, x in df.iterrows()
+                ]
+                pts.sort(key=lambda p: p.date)  # source is newest-first
+                f.nav = pts
+        except Exception as e:
+            log.warning("hk fund nav hist failed for %s: %s", code, e)
+    if not f.nav:  # fall back to the single latest point from the rank table
+        nav = _safe_float(r.get("单位净值"))
+        if nav is not None:
+            f.nav = [NavPoint(date=str(r.get("日期"))[:10], nav=nav, growth=_safe_float(r.get("日增长率")))]
+
+    # returns: prefer the rank's official period figures (percent → decimal).
     rmap = {"1m": "近1月", "3m": "近3月", "6m": "近6月", "1y": "近1年", "ytd": "今年来", "since": "成立来"}
     rets: dict[str, float | None] = {}
     for k, col in rmap.items():
@@ -249,6 +272,17 @@ def _build_hk_fund(code: str, r: dict) -> Fund:
         if v is not None:
             rets[k] = v / 100
     f.returns = rets
+
+    # max drawdown from the NAV history.
+    if len(f.nav) > 1:
+        peak = mdd = 0.0
+        for p in f.nav:
+            if p.nav is None:
+                continue
+            peak = max(peak, p.nav)
+            if peak > 0:
+                mdd = min(mdd, p.nav / peak - 1)
+        f.max_drawdown = round(mdd, 4) if mdd < 0 else None
     return f
 
 

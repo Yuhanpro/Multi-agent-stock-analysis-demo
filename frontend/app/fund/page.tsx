@@ -147,12 +147,14 @@ function FundInner() {
                   <Sparkles className="h-3.5 w-3.5" /> {t("fund.review")}
                 </button>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
-                <Info label={t("fund.manager")} value={fund.manager} />
-                <Info label={t("fund.scale")} value={fund.scale} />
-                <Info label={t("fund.company")} value={fund.company} />
-                <Info label={t("fund.inception")} value={fund.inception} />
-              </div>
+              {(fund.manager || fund.scale || fund.company || fund.inception) && (
+                <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
+                  <Info label={t("fund.manager")} value={fund.manager} />
+                  <Info label={t("fund.scale")} value={fund.scale} />
+                  <Info label={t("fund.company")} value={fund.company} />
+                  <Info label={t("fund.inception")} value={fund.inception} />
+                </div>
+              )}
               {fund.is_etf && fund.realtime && (
                 <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-border/50 pt-3 text-xs">
                   <span className="text-muted">{t("fund.realtime")}:</span>
@@ -287,10 +289,11 @@ function FundReview({ code, language, nonce }: { code: string; language: Lang; n
 }
 
 function Info({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
   return (
     <div className="flex justify-between gap-2 sm:block">
       <span className="text-muted">{label}</span>
-      <span className="font-medium text-body sm:mt-0.5 sm:block">{value || "—"}</span>
+      <span className="font-medium text-body sm:mt-0.5 sm:block">{value}</span>
     </div>
   );
 }
