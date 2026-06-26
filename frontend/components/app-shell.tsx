@@ -3,13 +3,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart2, Clock, Flame, Menu, Shield, Star, Stethoscope, X } from "lucide-react";
+import { Activity, BarChart2, Clock, Flame, HelpCircle, Menu, Shield, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { track } from "@/lib/track";
 import { cn } from "@/lib/format";
 import { AuthWidget } from "./auth-widget";
 import { LanguageSwitcher } from "./language-switcher";
+import { Onboarding } from "./onboarding";
+
+const ONBOARD_KEY = "stock-web:onboarded";
 
 type NavItem = { href: string; icon: typeof Flame; key: string };
 
@@ -59,11 +62,26 @@ function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Record a page view on every route change (fire-and-forget).
   useEffect(() => {
     track(pathname);
   }, [pathname]);
+
+  // Auto-show the onboarding guide on a visitor's first ever visit.
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(ONBOARD_KEY)) setHelpOpen(true);
+    } catch {}
+  }, []);
+
+  function closeHelp() {
+    setHelpOpen(false);
+    try {
+      localStorage.setItem(ONBOARD_KEY, "1");
+    } catch {}
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -106,12 +124,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setHelpOpen(true)}
+              aria-label="help"
+              className="text-muted hover:text-heading"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
             <AuthWidget showReportsLink={false} />
             <LanguageSwitcher />
           </div>
         </header>
         <div className="min-w-0 flex-1">{children}</div>
       </div>
+
+      {helpOpen && <Onboarding onClose={closeHelp} />}
     </div>
   );
 }
