@@ -41,6 +41,7 @@ function modeLabel(mode: string, zh: boolean): string {
     serenity: ["Serenity", "Serenity"],
     debate: ["多智能体辩论", "Debate"],
     diagnose: ["持仓诊断", "Diagnosis"],
+    fund: ["基金", "Fund"],
   };
   const hit = m[mode];
   return hit ? (zh ? hit[0] : hit[1]) : mode;

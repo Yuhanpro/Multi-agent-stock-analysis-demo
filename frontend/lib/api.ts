@@ -378,6 +378,33 @@ export async function fetchAdminPaths(): Promise<SessionPath[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/paths`, { headers: authHeaders() }));
 }
 
+// ---------- funds -----------------------------------------------------------
+
+export interface NavPoint { date: string; nav: number | null; growth: number | null; }
+export interface FundHolding { ticker: string; name: string; pct: number | null; }
+
+export interface Fund {
+  code: string;
+  name: string;
+  full_name: string | null;
+  type: string | null;
+  company: string | null;
+  manager: string | null;
+  scale: string | null;
+  inception: string | null;
+  benchmark: string | null;
+  strategy: string | null;
+  nav: NavPoint[];
+  holdings: FundHolding[];
+  holdings_quarter: string | null;
+  returns: Record<string, number | null>;
+  source: string;
+}
+
+export async function fetchFund(code: string): Promise<Fund> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/fund?code=${encodeURIComponent(code)}`));
+}
+
 export function trackEvent(anonId: string, path: string): void {
   // Fire-and-forget; never block navigation or throw.
   try {

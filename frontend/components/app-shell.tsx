@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart2, Clock, Flame, HelpCircle, Menu, Shield, Star, Stethoscope, X } from "lucide-react";
+import { Activity, BarChart2, Clock, Flame, HelpCircle, Menu, PieChart, Shield, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { track } from "@/lib/track";
@@ -19,6 +19,7 @@ type NavItem = { href: string; icon: typeof Flame; key: string };
 const NAV: NavItem[] = [
   { href: "/", icon: BarChart2, key: "nav.analyze" },
   { href: "/overview", icon: Flame, key: "nav.overview" },
+  { href: "/fund", icon: PieChart, key: "nav.funds" },
   { href: "/diagnose", icon: Stethoscope, key: "nav.diagnose" },
   { href: "/watchlist", icon: Star, key: "nav.watchlist" },
   { href: "/reports", icon: Clock, key: "nav.reports" },

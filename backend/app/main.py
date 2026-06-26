@@ -12,6 +12,7 @@ from app.routes import (
     auth,
     debate,
     financials,
+    funds,
     market_overview,
     quick,
     reports,
@@ -46,6 +47,7 @@ db.init_db()
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(snapshot.router, prefix="/api", tags=["snapshot"])
 app.include_router(financials.router, prefix="/api", tags=["financials"])
+app.include_router(funds.router, prefix="/api", tags=["funds"])
 app.include_router(market_overview.router, prefix="/api", tags=["market-overview"])
 app.include_router(quick.router, prefix="/api", tags=["quick"])
 app.include_router(debate.router, prefix="/api", tags=["debate"])
