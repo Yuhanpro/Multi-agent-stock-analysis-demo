@@ -16,9 +16,13 @@ function yi(v: number | null): string {
   return v.toFixed(0);
 }
 
-function tone(v: number | null): string {
+// Color by local market convention. bull=green, bear=red.
+// A股:红涨绿跌(涨→bear/红,跌→bull/绿)。美股/港股:绿涨红跌(默认)。
+function tone(v: number | null, market: Market): string {
   if (v == null) return "text-muted";
-  return v >= 0 ? "text-bull" : "text-bear";
+  const up = v >= 0;
+  if (market === "CN") return up ? "text-bear" : "text-bull";
+  return up ? "text-bull" : "text-bear";
 }
 
 export default function OverviewPage() {
@@ -81,12 +85,12 @@ export default function OverviewPage() {
                   <div key={ind.name + i} className="rounded-lg border border-border bg-surface/70 p-3">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="truncate font-semibold text-heading">{ind.name}</span>
-                      <span className={cn("font-semibold tabular-nums", tone(ind.change_pct))}>{fmtPct(ind.change_pct)}</span>
+                      <span className={cn("font-semibold tabular-nums", tone(ind.change_pct, market))}>{fmtPct(ind.change_pct)}</span>
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[11px] text-muted">
                       <span>{t("ov.amount")} {yi(ind.amount)}{ind.num_companies ? ` · ${ind.num_companies}家` : ""}</span>
                       {ind.leader_name && (
-                        <span className="truncate">{t("ov.leader")}: {ind.leader_name} <span className={tone(ind.leader_change)}>{fmtPct(ind.leader_change)}</span></span>
+                        <span className="truncate">{t("ov.leader")}: {ind.leader_name} <span className={tone(ind.leader_change, market)}>{fmtPct(ind.leader_change)}</span></span>
                       )}
                     </div>
                   </div>
@@ -112,7 +116,7 @@ export default function OverviewPage() {
                       <span className="ml-2 font-mono text-[11px] text-muted">{c.code}</span>
                     </div>
                     <span className="shrink-0 text-right text-xs text-muted">{t("ov.amount")} {yi(c.amount)}</span>
-                    <span className={cn("w-16 shrink-0 text-right text-sm font-semibold tabular-nums", tone(c.change_pct))}>{fmtPct(c.change_pct)}</span>
+                    <span className={cn("w-16 shrink-0 text-right text-sm font-semibold tabular-nums", tone(c.change_pct, c.market))}>{fmtPct(c.change_pct)}</span>
                   </Link>
                 ))}
               </div>
