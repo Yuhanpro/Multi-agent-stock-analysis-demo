@@ -380,6 +380,39 @@ export async function fetchAdminPaths(): Promise<SessionPath[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/paths`, { headers: authHeaders() }));
 }
 
+// ---------- feedback --------------------------------------------------------
+
+export interface Feedback {
+  id: number;
+  category: string;
+  content: string;
+  contact: string | null;
+  email: string | null;
+  user_id: number | null;
+  path: string | null;
+  created_at: string;
+}
+
+export async function submitFeedback(body: {
+  content: string;
+  category: string;
+  contact?: string;
+  anon_id?: string;
+  path?: string;
+}): Promise<{ ok: boolean; id: number }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    })
+  );
+}
+
+export async function fetchAdminFeedback(): Promise<Feedback[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/feedback`, { headers: authHeaders() }));
+}
+
 // ---------- funds -----------------------------------------------------------
 
 export interface NavPoint { date: string; nav: number | null; growth: number | null; }

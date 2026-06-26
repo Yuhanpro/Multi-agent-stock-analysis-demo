@@ -3,7 +3,7 @@ import { trackEvent } from "./api";
 
 const KEY = "stock-web:anon";
 
-function anonId(): string {
+export function anonId(): string {
   if (typeof window === "undefined") return "";
   let id = "";
   try {

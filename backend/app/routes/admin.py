@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services import events, invites
+from app.services import feedback as fb
 from app.services.auth import User, get_current_admin
 
 router = APIRouter()
@@ -41,3 +42,8 @@ def admin_stats(user: User = Depends(get_current_admin)) -> events.Stats:
 @router.get("/admin/paths", response_model=list[events.SessionPath])
 def admin_paths(user: User = Depends(get_current_admin)) -> list[events.SessionPath]:
     return events.recent_paths()
+
+
+@router.get("/admin/feedback", response_model=list[fb.Feedback])
+def admin_feedback(user: User = Depends(get_current_admin)) -> list[fb.Feedback]:
+    return fb.list_feedback()

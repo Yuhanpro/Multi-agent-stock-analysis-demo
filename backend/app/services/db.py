@@ -72,6 +72,19 @@ CREATE TABLE IF NOT EXISTS watchlist (
     UNIQUE (user_id, ticker, market),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    anon_id    TEXT,
+    user_id    INTEGER,
+    email      TEXT,
+    contact    TEXT,
+    category   TEXT NOT NULL DEFAULT 'suggestion',
+    content    TEXT NOT NULL,
+    path       TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC);
 """
 
 

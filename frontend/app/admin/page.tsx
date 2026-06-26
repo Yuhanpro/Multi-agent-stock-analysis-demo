@@ -6,15 +6,15 @@ import {
 } from "recharts";
 import { Check, Copy, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
-  createInvites, fetchAdminPaths, fetchAdminStats, fetchInvites, revokeInvite,
-  type AdminStats, type InviteCode, type ModeCount, type SessionPath,
+  createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminStats, fetchInvites, revokeInvite,
+  type AdminStats, type Feedback, type InviteCode, type ModeCount, type SessionPath,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 import { LoginPrompt } from "@/components/auth-widget";
 
-const TABS = ["overview", "traffic", "usage", "invites", "paths"] as const;
+const TABS = ["overview", "traffic", "usage", "feedback", "invites", "paths"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
@@ -54,13 +54,16 @@ function Dashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [invites, setInvites] = useState<InviteCode[]>([]);
   const [paths, setPaths] = useState<SessionPath[]>([]);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
     setLoading(true);
     try {
-      const [s, inv, p] = await Promise.all([fetchAdminStats(), fetchInvites(), fetchAdminPaths()]);
-      setStats(s); setInvites(inv); setPaths(p);
+      const [s, inv, p, fb] = await Promise.all([
+        fetchAdminStats(), fetchInvites(), fetchAdminPaths(), fetchAdminFeedback(),
+      ]);
+      setStats(s); setInvites(inv); setPaths(p); setFeedback(fb);
     } catch {}
     setLoading(false);
   }
@@ -89,6 +92,7 @@ function Dashboard() {
         {tab === "overview" && stats && <Overview stats={stats} />}
         {tab === "traffic" && stats && <Traffic stats={stats} />}
         {tab === "usage" && stats && <Usage stats={stats} zh={zh} />}
+        {tab === "feedback" && <FeedbackList items={feedback} zh={zh} />}
         {tab === "invites" && (
           <Invites stats={stats} invites={invites} setInvites={setInvites} />
         )}
@@ -240,6 +244,42 @@ function Invites({ stats, invites, setInvites }: { stats: AdminStats | null; inv
             ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function fbCatLabel(cat: string, zh: boolean): string {
+  const m: Record<string, [string, string]> = {
+    suggestion: ["建议", "Suggestion"],
+    feature: ["新功能", "Feature"],
+    bug: ["问题", "Bug"],
+    other: ["其他", "Other"],
+  };
+  const hit = m[cat];
+  return hit ? (zh ? hit[0] : hit[1]) : cat;
+}
+
+function FeedbackList({ items, zh }: { items: Feedback[]; zh: boolean }) {
+  const { t } = useT();
+  if (items.length === 0) return <p className="text-sm text-muted">{t("admin.empty")}</p>;
+  return (
+    <div className="space-y-2.5">
+      {items.map((f) => (
+        <div key={f.id} className="rounded-xl border border-border bg-surface p-4">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span className={cn(
+              "rounded border px-1.5 py-0.5 text-[10px]",
+              f.category === "bug" ? "border-bear/50 text-bear" : "border-accent/50 text-accent"
+            )}>
+              {fbCatLabel(f.category, zh)}
+            </span>
+            <span className="font-medium text-body">{f.email || f.contact || (zh ? "匿名" : "Anonymous")}</span>
+            {f.contact && f.email && <span className="text-muted/70">· {f.contact}</span>}
+            <span className="ml-auto">{new Date(f.created_at).toLocaleString()}</span>
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-6 text-body">{f.content}</p>
+        </div>
+      ))}
     </div>
   );
 }

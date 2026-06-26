@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart2, Clock, Flame, HelpCircle, Menu, PieChart, Shield, Star, Stethoscope, X } from "lucide-react";
+import { Activity, BarChart2, Clock, Flame, HelpCircle, Menu, MessagesSquare, PieChart, Shield, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { track } from "@/lib/track";
@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { href: "/diagnose", icon: Stethoscope, key: "nav.diagnose" },
   { href: "/watchlist", icon: Star, key: "nav.watchlist" },
   { href: "/reports", icon: Clock, key: "nav.reports" },
+  { href: "/feedback", icon: MessagesSquare, key: "nav.feedback" },
 ];
 
 function SidebarBody({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
