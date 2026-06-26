@@ -1,9 +1,11 @@
-// API base URL for the FastAPI backend. Defaults to localhost:8000 for dev;
-// override with NEXT_PUBLIC_API_BASE in .env.local or at build time.
+// API base URL for the FastAPI backend.
+// - unset (local dev)  -> http://localhost:8000
+// - set to "" (prod)   -> same-origin relative URLs (/api/...), so the same build
+//   works behind :18080 today and an https domain later, with no CORS / mixed-content.
 import { authHeaders } from "./token";
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 export type Market = "US" | "CN" | "HK";
 export type AnalysisMode = "snapshot" | "quick" | "serenity" | "debate";
