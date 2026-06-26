@@ -44,13 +44,39 @@ def _fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
     return rows, cmap
 
 
+_HK_CACHE: tuple[float, list[dict], dict[str, dict]] | None = None
+
+
+def _hk_rank() -> tuple[list[dict], dict[str, dict]]:
+    """Hong Kong mutual-recognition funds (互认基金, 968xxx) — list + per-code row.
+    fund_hk_rank_em carries name/currency/latest NAV/multi-period returns. 6h."""
+    global _HK_CACHE
+    if _HK_CACHE and time.time() - _HK_CACHE[0] < 6 * 3600:
+        return _HK_CACHE[1], _HK_CACHE[2]
+    import akshare as ak
+
+    rows: list[dict] = []
+    cmap: dict[str, dict] = {}
+    try:
+        df = ak.fund_hk_rank_em()
+        for _, r in df.iterrows():
+            code = str(r.get("基金代码"))
+            name = str(r.get("基金简称"))
+            rows.append({"code": code, "name": name, "type": "香港互认", "py": ""})
+            cmap[code] = {k: r.get(k) for k in df.columns}
+    except Exception as e:
+        log.warning("hk fund rank failed: %s", e)
+    _HK_CACHE = (time.time(), rows, cmap)
+    return rows, cmap
+
+
 def search_funds(q: str, limit: int = 15) -> list[dict]:
     q = (q or "").strip()
     if not q:
         return []
     qu = q.upper()
     tokens = [tk for tk in q.split() if tk]
-    rows, _ = _fund_table()
+    rows = _fund_table()[0] + _hk_rank()[0]
     scored: list[tuple[int, int, dict]] = []
     for r in rows:
         code, name, py = r["code"], r["name"], r["py"]
@@ -203,7 +229,34 @@ def get_fund(code: str) -> Fund:
     return f
 
 
+def _build_hk_fund(code: str, r: dict) -> Fund:
+    """香港互认基金 (968xxx): name/currency/latest NAV/multi-period returns from
+    fund_hk_rank_em. No holdings / no full NAV history exposed by this source."""
+    f = Fund(code=code, source="akshare-hk")
+    f.name = _str(r.get("基金简称")) or code
+    cur = _str(r.get("币种"))
+    f.type = f"香港互认 · {cur}" if cur else "香港互认基金"
+    f.strategy = "香港互认基金(通过内地代销渠道购买),数据来源东方财富香港基金排行。"
+    nav = _safe_float(r.get("单位净值"))
+    d = str(r.get("日期"))[:10]
+    if nav is not None:
+        f.nav = [NavPoint(date=d, nav=nav, growth=_safe_float(r.get("日增长率")))]
+    # rank columns are percent (近1年 114.26 → +114.26%); map to our return keys.
+    rmap = {"1m": "近1月", "3m": "近3月", "6m": "近6月", "1y": "近1年", "ytd": "今年来", "since": "成立来"}
+    rets: dict[str, float | None] = {}
+    for k, col in rmap.items():
+        v = _safe_float(r.get(col))
+        if v is not None:
+            rets[k] = v / 100
+    f.returns = rets
+    return f
+
+
 def _build_fund(code: str) -> Fund:
+    hk = _hk_rank()[1].get(code)
+    if hk is not None:
+        return _build_hk_fund(code, hk)
+
     import akshare as ak
 
     f = Fund(code=code)
