@@ -18,6 +18,27 @@ log = logging.getLogger(__name__)
 
 _CACHE: dict[str, tuple[float, "Fund"]] = {}
 _TTL = 6 * 3600
+_NAMES_CACHE: tuple[float, dict[str, tuple[str, str]]] | None = None
+
+
+def _names() -> dict[str, tuple[str, str]]:
+    """code -> (简称, 类型) from the full fund list; used to backfill ETFs where
+    the xueqiu basic-info endpoint returns nothing. Cached 24h."""
+    global _NAMES_CACHE
+    if _NAMES_CACHE and time.time() - _NAMES_CACHE[0] < 24 * 3600:
+        return _NAMES_CACHE[1]
+    import akshare as ak
+
+    d: dict[str, tuple[str, str]] = {}
+    try:
+        df = ak.fund_name_em()
+        cols = list(df.columns)
+        for _, r in df.iterrows():
+            d[str(r[cols[0]])] = (str(r[cols[2]]), str(r[cols[3]]))
+    except Exception as e:
+        log.warning("fund_name_em failed: %s", e)
+    _NAMES_CACHE = (time.time(), d)
+    return d
 
 
 class NavPoint(BaseModel):
@@ -111,6 +132,15 @@ def get_fund(code: str) -> Fund:
         f.strategy = (_str(kv.get("投资策略")) or "")[:400] or None
     except Exception as e:
         log.warning("fund basic info failed for %s: %s", code, e)
+
+    # Backfill name/type from the full fund list (ETFs lack xueqiu basic info).
+    if not f.name or f.name == code:
+        nm = _names().get(code)
+        if nm:
+            f.name = nm[0] or f.name or code
+            f.type = f.type or nm[1]
+    if not f.name:
+        f.name = code
 
     # ---- NAV history (works for open funds and ETFs) ----
     try:
