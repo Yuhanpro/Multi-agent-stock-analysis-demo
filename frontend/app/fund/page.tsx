@@ -67,7 +67,7 @@ function FundInner() {
     if (!term) { setSugs([]); return; }
     const id = window.setTimeout(async () => {
       try {
-        const r = await searchFunds(term, 10);
+        const r = await searchFunds(term, 14);
         setSugs(r);
         setOpen(r.length > 0);
       } catch { setSugs([]); }

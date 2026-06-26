@@ -44,32 +44,38 @@ def _fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
     return rows, cmap
 
 
-def search_funds(q: str, limit: int = 12) -> list[dict]:
+def search_funds(q: str, limit: int = 15) -> list[dict]:
     q = (q or "").strip()
     if not q:
         return []
     qu = q.upper()
+    tokens = [tk for tk in q.split() if tk]
     rows, _ = _fund_table()
-    scored: list[tuple[int, dict]] = []
+    scored: list[tuple[int, int, dict]] = []
     for r in rows:
         code, name, py = r["code"], r["name"], r["py"]
         score = 0
         if code == q:
             score = 100
-        elif code.startswith(q):
-            score = 80
+        elif q.isdigit() and code.startswith(q):
+            score = 92
+        elif name == q:
+            score = 90
         elif name.startswith(q):
-            score = 70
+            score = 80
         elif q in name:
-            score = 50
+            score = 65
+        elif len(tokens) > 1 and all(tk in name for tk in tokens):
+            score = 60  # space-separated multi-keyword AND
         elif qu and qu in py:
-            score = 40
+            score = 45
         elif qu in code:
-            score = 30
+            score = 25
         if score:
-            scored.append((score, {"code": code, "name": name, "type": r["type"]}))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [d for _, d in scored[:limit]]
+            # tie-break: shorter (more specific) name first.
+            scored.append((score, -len(name), {"code": code, "name": name, "type": r["type"]}))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [d for _, _, d in scored[: max(1, min(limit, 30))]]
 
 
 _ETF_CACHE: tuple[float, dict[str, dict]] | None = None
