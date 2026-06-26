@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, Clock, Flame, Sparkles, Star, Stethoscope, X } from "lucide-react";
+import { BarChart2, Clock, Flame, MessageCircleQuestion, PieChart, Sparkles, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /** First-visit onboarding modal. Content is inline-bilingual to keep i18n lean. */
@@ -11,8 +11,18 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
   const features: { icon: typeof BarChart2; en: string; zh: string }[] = [
     {
       icon: BarChart2,
-      zh: "输入代码(A股 600519 / 美股 AAPL / 港股 00700),选市场和模式点「分析」:行情快照(免费最快)、巴菲特速评(约30秒)、Serenity 产业链(约1分钟)、多智能体辩论(3–6分钟,出最终结论)。",
-      en: "Enter a ticker (CN 600519 / US AAPL / HK 00700), pick a market + mode, click Analyze: Snapshot (free, fastest), Buffett Quick (~30s), Serenity supply-chain (~1min), Multi-Agent Debate (3–6min, final verdict).",
+      zh: "「股票分析」输入代码(A股 600519 / 美股 AAPL / 港股 00700),选市场和模式:行情快照(免费最快,含财务概览趋势)、巴菲特速评(约30秒)、Serenity 产业链(约1分钟)、多智能体辩论(3–6分钟,出最终结论)。",
+      en: "Stock Analysis — enter a ticker (CN 600519 / US AAPL / HK 00700), pick a market + mode: Snapshot (free, fastest, with the financial-trend overview), Buffett Quick (~30s), Serenity supply-chain (~1min), Multi-Agent Debate (3–6min, final verdict).",
+    },
+    {
+      icon: MessageCircleQuestion,
+      zh: "多轮追问(新):速评/Serenity/诊断出报告后,下方可继续对话提问(「估值贵吗」「最大风险」等),AI 带着报告和实时行情上下文连续回答。",
+      en: "Follow-up chat (new): after a Quick / Serenity / Diagnosis report, keep asking below (\"is it expensive?\", \"biggest risk?\") — the AI answers with the report + live data in context.",
+    },
+    {
+      icon: PieChart,
+      zh: "基金(新):搜名字或代码(如「全球科技」「易方达」「摩根太平洋」),覆盖 A股公募 + QDII海外 + 香港互认基金,看净值曲线、重仓股、ETF 实时溢价与 AI 点评。",
+      en: "Funds (new): search by name or code (e.g. \"global tech\", \"E Fund\", \"摩根太平洋\") — CN funds + overseas QDII + HK mutual-recognition funds, with NAV curve, holdings, ETF realtime premium and an AI review.",
     },
     {
       icon: Stethoscope,
@@ -49,8 +59,8 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
 
         <p className="mt-2 text-sm leading-6 text-body">
           {zh
-            ? "输入一只股票,让多个 AI 分析师帮你看基本面、估值、产业链并辩论出结论。支持 A股 / 美股 / 港股。"
-            : "Enter a stock and let multiple AI analysts review fundamentals, valuation, supply chain, and debate a conclusion. CN / US / HK supported."}
+            ? "输入一只股票,让多个 AI 分析师帮你看基本面、估值、产业链并辩论出结论,还能继续追问。支持 A股 / 美股 / 港股 / 基金。"
+            : "Enter a stock and let multiple AI analysts review fundamentals, valuation, supply chain, debate a conclusion — then ask follow-ups. CN / US / HK stocks & funds supported."}
         </p>
 
         <div className="mt-4 space-y-3">
