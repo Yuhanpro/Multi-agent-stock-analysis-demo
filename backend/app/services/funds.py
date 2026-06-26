@@ -69,6 +69,8 @@ def search_funds(q: str, limit: int = 15) -> list[dict]:
             score = 60  # space-separated multi-keyword AND
         elif qu and qu in py:
             score = 45
+        elif len(q) >= 3 and all(ch in name for ch in q):
+            score = 35  # all chars present (catches "招商白酒" → 招商中证白酒指数)
         elif qu in code:
             score = 25
         if score:
