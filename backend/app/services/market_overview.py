@@ -41,6 +41,27 @@ _CURATED: dict[str, list[tuple[str, str]]] = {
 }
 
 
+class IndexQuote(BaseModel):
+    code: str
+    name: str
+    price: float | None = None
+    change_pct: float | None = None
+
+
+class NewsItem(BaseModel):
+    title: str
+    summary: str | None = None
+    time: str | None = None
+    url: str | None = None
+
+
+class Breadth(BaseModel):
+    advancers: int | None = None   # 上涨家数
+    decliners: int | None = None   # 下跌家数
+    flat: int | None = None
+    limit_up: int | None = None    # 涨停家数
+
+
 class HotIndustry(BaseModel):
     name: str
     change_pct: float | None = None
@@ -66,10 +87,92 @@ class SiteTop(BaseModel):
 
 
 class MarketOverview(BaseModel):
+    indices: list[IndexQuote] = []
+    breadth: Breadth | None = None
     hot_industries: list[HotIndustry] = []
     hot_companies: list[HotCompany] = []
+    news: list[NewsItem] = []
     site_top: list[SiteTop] = []
     source: str = ""
+
+
+# Major A-share indices (Sina codes), in display order.
+_INDEX_CODES: list[tuple[str, str]] = [
+    ("sh000001", "上证指数"), ("sz399001", "深证成指"), ("sz399006", "创业板指"),
+    ("sh000300", "沪深300"), ("sh000688", "科创50"),
+]
+
+
+def _indices() -> list[IndexQuote]:
+    import akshare as ak
+
+    df = ak.stock_zh_index_spot_sina()
+    if df is None or df.empty:
+        return []
+    by_code = {str(r["代码"]): r for _, r in df.iterrows()}
+    out: list[IndexQuote] = []
+    for code, name in _INDEX_CODES:
+        r = by_code.get(code)
+        if r is not None:
+            out.append(IndexQuote(
+                code=code, name=name,
+                price=_safe_float(r.get("最新价")), change_pct=_pct(r.get("涨跌幅")),
+            ))
+    return out
+
+
+def _news(limit: int = 24) -> list[NewsItem]:
+    """东方财富全球财经快讯 — title/summary/time/link. Global, used on all markets."""
+    import akshare as ak
+
+    df = ak.stock_info_global_em()
+    if df is None or df.empty:
+        return []
+    out: list[NewsItem] = []
+    for _, r in df.head(limit).iterrows():
+        title = str(r.get("标题") or "").strip()
+        if not title:
+            continue
+        summ = r.get("摘要")
+        url = r.get("链接")
+        out.append(NewsItem(
+            title=title,
+            summary=(str(summ).strip() or None) if summ is not None else None,
+            time=str(r.get("发布时间")) if r.get("发布时间") is not None else None,
+            url=str(url) if url is not None else None,
+        ))
+    return out
+
+
+def _breadth() -> Breadth | None:
+    """Market breadth: advancers/decliners (whole-market spot) + limit-up count.
+    北向资金实时净流入自 2024-08 起官方停止披露(接口恒为 0),故改用涨跌家数。"""
+    import akshare as ak
+    import pandas as pd
+
+    b = Breadth()
+    df = get_cn_spot()
+    if df is not None and not getattr(df, "empty", True) and "涨跌幅" in df.columns:
+        chg = pd.to_numeric(df["涨跌幅"], errors="coerce")
+        b.advancers = int((chg > 0).sum())
+        b.decliners = int((chg < 0).sum())
+        b.flat = int((chg == 0).sum())
+
+    from datetime import timedelta
+    cn_now = datetime.now(timezone.utc) + timedelta(hours=8)
+    for back in range(0, 4):  # walk back to the latest trading day with data
+        d = (cn_now - timedelta(days=back)).strftime("%Y%m%d")
+        try:
+            zt = ak.stock_zt_pool_em(date=d)
+            if zt is not None and len(zt) > 0:
+                b.limit_up = int(len(zt))
+                break
+        except Exception:
+            continue
+
+    if b.advancers is None and b.limit_up is None:
+        return None
+    return b
 
 
 def _industries() -> list[HotIndustry]:
@@ -171,12 +274,18 @@ def get_overview(market: str = "CN") -> MarketOverview:
     ov = MarketOverview(source="sina")
     try:
         if market == "CN":
+            ov.indices = _indices()
             ov.hot_industries = _industries()
             ov.hot_companies = _companies()
+            ov.breadth = _breadth()
         else:
             ov.hot_companies = _curated_companies(market)
     except Exception as e:
         log.warning("overview %s failed: %s", market, e)
+    try:
+        ov.news = _news()
+    except Exception as e:
+        log.warning("news failed: %s", e)
     try:
         ov.site_top = _site_top(market)
     except Exception as e:

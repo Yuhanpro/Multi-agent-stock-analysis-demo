@@ -292,9 +292,33 @@ export interface SiteTop {
   count: number;
 }
 
+export interface IndexQuote {
+  code: string;
+  name: string;
+  price: number | null;
+  change_pct: number | null;
+}
+
+export interface Breadth {
+  advancers: number | null;
+  decliners: number | null;
+  flat: number | null;
+  limit_up: number | null;
+}
+
+export interface NewsItem {
+  title: string;
+  summary: string | null;
+  time: string | null;
+  url: string | null;
+}
+
 export interface MarketOverview {
+  indices: IndexQuote[];
+  breadth: Breadth | null;
   hot_industries: HotIndustry[];
   hot_companies: HotCompany[];
+  news: NewsItem[];
   site_top: SiteTop[];
   source: string;
 }

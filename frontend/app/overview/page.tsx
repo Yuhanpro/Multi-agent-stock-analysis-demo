@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Flame, Loader2, TrendingUp } from "lucide-react";
+import { Flame, Loader2, Newspaper, TrendingUp } from "lucide-react";
 import { fetchMarketOverview, type Market, type MarketOverview } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
@@ -76,6 +76,57 @@ export default function OverviewPage() {
         <div className="mt-6 rounded-lg border border-bear/40 bg-bear/10 px-4 py-3 text-sm text-bear">{error}</div>
       ) : data ? (
         <div className="mt-6 space-y-8">
+          {/* Index strip (CN) */}
+          {data.indices.length > 0 && (
+            <section>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                {data.indices.map((ix) => (
+                  <div key={ix.code} className="rounded-lg border border-border bg-surface/70 px-3 py-2">
+                    <div className="truncate text-[11px] text-muted">{ix.name}</div>
+                    <div className="mt-0.5 text-base font-semibold tabular-nums text-heading">
+                      {ix.price != null ? ix.price.toFixed(2) : "—"}
+                    </div>
+                    <div className={cn("text-xs font-semibold tabular-nums", tone(ix.change_pct, "CN"))}>
+                      {fmtPct(ix.change_pct)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Breadth (CN): advancers / decliners / limit-up. CN convention: up=red. */}
+          {data.breadth && (data.breadth.advancers != null || data.breadth.limit_up != null) && (
+            <section>
+              <div className="flex flex-wrap gap-2">
+                {data.breadth.advancers != null && (
+                  <div className="rounded-lg border border-border bg-surface/70 px-4 py-2 text-center">
+                    <div className="text-[11px] text-muted">{t("ov.adv")}</div>
+                    <div className="text-lg font-semibold tabular-nums text-bear">{data.breadth.advancers}</div>
+                  </div>
+                )}
+                {data.breadth.decliners != null && (
+                  <div className="rounded-lg border border-border bg-surface/70 px-4 py-2 text-center">
+                    <div className="text-[11px] text-muted">{t("ov.dec")}</div>
+                    <div className="text-lg font-semibold tabular-nums text-bull">{data.breadth.decliners}</div>
+                  </div>
+                )}
+                {data.breadth.flat != null && (
+                  <div className="rounded-lg border border-border bg-surface/70 px-4 py-2 text-center">
+                    <div className="text-[11px] text-muted">{t("ov.flat")}</div>
+                    <div className="text-lg font-semibold tabular-nums text-muted">{data.breadth.flat}</div>
+                  </div>
+                )}
+                {data.breadth.limit_up != null && (
+                  <div className="rounded-lg border border-border bg-surface/70 px-4 py-2 text-center">
+                    <div className="text-[11px] text-muted">{t("ov.zt")}</div>
+                    <div className="text-lg font-semibold tabular-nums text-bear">{data.breadth.limit_up}</div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Hot industries (CN only) */}
           {data.hot_industries.length > 0 && (
             <section>
@@ -122,6 +173,39 @@ export default function OverviewPage() {
               </div>
             </div>
           </section>
+
+          {/* Market news feed (all markets) */}
+          {data.news.length > 0 && (
+            <section>
+              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-heading">
+                <Newspaper className="h-4 w-4 text-accent" />
+                {t("ov.news")}
+              </h2>
+              <div className="space-y-2">
+                {data.news.map((n, i) => {
+                  const tm = n.time && n.time.length >= 16 ? n.time.slice(5, 16) : n.time;
+                  const body = (
+                    <>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-medium text-heading">{n.title}</span>
+                        {tm && <span className="shrink-0 font-mono text-[11px] text-muted">{tm}</span>}
+                      </div>
+                      {n.summary && <p className="mt-1 truncate text-xs text-muted">{n.summary}</p>}
+                    </>
+                  );
+                  return n.url ? (
+                    <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
+                      className="block rounded-lg border border-border bg-surface/70 p-3 transition-colors hover:border-accent/50">
+                      {body}
+                    </a>
+                  ) : (
+                    <div key={i} className="rounded-lg border border-border bg-surface/70 p-3">{body}</div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] text-muted/60">{t("ov.newsSrc")}</p>
+            </section>
+          )}
 
           {/* On-site top */}
           {data.site_top.length > 0 && (
