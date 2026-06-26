@@ -189,7 +189,9 @@ export default function Page() {
 
         {snapshot && <SnapshotCard snapshot={snapshot} />}
 
-        {snapshot && <FinancialsPanel ticker={snapshot.ticker} market={snapshot.market} />}
+        {snapshot && mode === "snapshot" && (
+          <FinancialsPanel ticker={snapshot.ticker} market={snapshot.market} />
+        )}
 
         {run && (run.mode === "quick" || run.mode === "serenity") && (
           <QuickResult
