@@ -382,6 +382,14 @@ export async function fetchAdminPaths(): Promise<SessionPath[]> {
 
 export interface NavPoint { date: string; nav: number | null; growth: number | null; }
 export interface FundHolding { ticker: string; name: string; pct: number | null; }
+export interface FundRealtime {
+  price: number | null;
+  iopv: number | null;
+  premium: number | null;
+  change_pct: number | null;
+  amount: number | null;
+  updated: string | null;
+}
 
 export interface Fund {
   code: string;
@@ -398,11 +406,20 @@ export interface Fund {
   holdings: FundHolding[];
   holdings_quarter: string | null;
   returns: Record<string, number | null>;
+  max_drawdown: number | null;
+  is_etf: boolean;
+  realtime: FundRealtime | null;
   source: string;
 }
 
+export interface FundSuggestion { code: string; name: string; type: string | null; }
+
 export async function fetchFund(code: string): Promise<Fund> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/fund?code=${encodeURIComponent(code)}`));
+}
+
+export async function searchFunds(q: string, limit = 12): Promise<FundSuggestion[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/fund-search?q=${encodeURIComponent(q)}&limit=${limit}`));
 }
 
 export function trackEvent(anonId: string, path: string): void {

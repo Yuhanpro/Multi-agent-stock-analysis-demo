@@ -1,11 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Loader2, PieChart, Search } from "lucide-react";
-import { fetchFund, type Fund } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { AlertCircle, CheckCircle2, Loader2, PieChart, Search, Sparkles } from "lucide-react";
+import { fetchFund, searchFunds, type Fund, type FundSuggestion } from "@/lib/api";
+import { streamSSE } from "@/lib/sse";
+import { useT, type Lang } from "@/lib/i18n";
 import { track } from "@/lib/track";
 import { cn, fmtPct } from "@/lib/format";
 
@@ -26,18 +29,23 @@ function FundInner() {
   const { t, lang } = useT();
   const zh = lang === "zh";
   const params = useSearchParams();
-  const [code, setCode] = useState("");
+  const [q, setQ] = useState("");
+  const [sugs, setSugs] = useState<FundSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
   const [fund, setFund] = useState<Fund | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewNonce, setReviewNonce] = useState(0);
 
-  async function load(c: string) {
-    const v = c.trim();
+  async function load(code: string) {
+    const v = code.trim();
     if (!v) return;
     track("run:fund");
+    setOpen(false);
     setLoading(true);
     setError(null);
     setFund(null);
+    setReviewNonce(0);
     try {
       setFund(await fetchFund(v));
     } catch (e) {
@@ -49,9 +57,23 @@ function FundInner() {
 
   useEffect(() => {
     const c = params.get("code");
-    if (c) { setCode(c); load(c); }
+    if (c) { setQ(c); load(c); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Debounced search suggestions.
+  useEffect(() => {
+    const term = q.trim();
+    if (!term) { setSugs([]); return; }
+    const id = window.setTimeout(async () => {
+      try {
+        const r = await searchFunds(term, 10);
+        setSugs(r);
+        setOpen(r.length > 0);
+      } catch { setSugs([]); }
+    }, 160);
+    return () => window.clearTimeout(id);
+  }, [q]);
 
   const navData = (() => {
     if (!fund?.nav?.length) return [];
@@ -70,14 +92,36 @@ function FundInner() {
         </div>
         <p className="max-w-2xl text-sm leading-6 text-body">{t("fund.lead")}</p>
         <div className="flex gap-2">
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && load(code)}
-            placeholder={t("fund.placeholder")}
-            className="w-full max-w-xs rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent/70"
-          />
-          <button onClick={() => load(code)} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/85">
+          <div className="relative w-full max-w-sm">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onFocus={() => setOpen(sugs.length > 0)}
+              onKeyDown={(e) => e.key === "Enter" && load(q)}
+              placeholder={t("fund.placeholder")}
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent/70"
+            />
+            {open && sugs.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-lg border border-border bg-elevated shadow-2xl">
+                {sugs.map((s) => (
+                  <button
+                    key={s.code}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { setQ(s.code); load(s.code); }}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-border/35"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-heading">{s.name}</span>
+                      <span className="ml-2 font-mono text-xs text-muted">{s.code}</span>
+                    </div>
+                    {s.type && <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{s.type}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => load(q)} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/85">
             <Search className="h-4 w-4" /> {t("fund.search")}
           </button>
         </div>
@@ -90,10 +134,18 @@ function FundInner() {
         {fund && (
           <>
             <div className="rounded-xl border border-border bg-surface p-5">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <h2 className="text-xl font-semibold text-heading">{fund.name}</h2>
-                <span className="font-mono text-xs text-muted">{fund.code}</span>
-                {fund.type && <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{fund.type}</span>}
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h2 className="text-xl font-semibold text-heading">{fund.name}</h2>
+                  <span className="font-mono text-xs text-muted">{fund.code}</span>
+                  {fund.type && <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{fund.type}</span>}
+                </div>
+                <button
+                  onClick={() => setReviewNonce(Date.now())}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/85"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> {t("fund.review")}
+                </button>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
                 <Info label={t("fund.manager")} value={fund.manager} />
@@ -101,10 +153,21 @@ function FundInner() {
                 <Info label={t("fund.company")} value={fund.company} />
                 <Info label={t("fund.inception")} value={fund.inception} />
               </div>
+              {fund.is_etf && fund.realtime && (
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-border/50 pt-3 text-xs">
+                  <span className="text-muted">{t("fund.realtime")}:</span>
+                  <span className="text-heading">{fund.realtime.price}</span>
+                  <span className={cn(fund.realtime.change_pct != null && fund.realtime.change_pct >= 0 ? "text-bull" : "text-bear")}>
+                    {fund.realtime.change_pct != null ? `${fund.realtime.change_pct.toFixed(2)}%` : ""}
+                  </span>
+                  <span className="text-muted">{t("fund.iopv")} {fund.realtime.iopv}</span>
+                  <span className="text-muted">{t("fund.premium")} {fund.realtime.premium != null ? `${fund.realtime.premium}%` : "—"}</span>
+                </div>
+              )}
             </div>
 
-            {Object.keys(fund.returns).length > 0 && (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {(Object.keys(fund.returns).length > 0 || fund.max_drawdown != null) && (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
                 {RET_KEYS.map(([k, zhL, enL]) => {
                   const v = fund.returns[k];
                   if (v == null) return null;
@@ -115,8 +178,16 @@ function FundInner() {
                     </div>
                   );
                 })}
+                {fund.max_drawdown != null && (
+                  <div className="rounded-lg border border-border bg-surface/70 px-3 py-2 text-center">
+                    <div className="text-[11px] text-muted">{t("fund.drawdown")}</div>
+                    <div className="text-sm font-semibold tabular-nums text-bear">{fmtPct(fund.max_drawdown)}</div>
+                  </div>
+                )}
               </div>
             )}
+
+            {reviewNonce > 0 && <FundReview code={fund.code} language={lang} nonce={reviewNonce} />}
 
             {navData.length > 1 && (
               <div className="rounded-xl border border-border bg-surface p-4">
@@ -172,6 +243,46 @@ function FundInner() {
         )}
       </section>
     </main>
+  );
+}
+
+function FundReview({ code, language, nonce }: { code: string; language: Lang; nonce: number }) {
+  const { t } = useT();
+  const [text, setText] = useState("");
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ref = useRef<{ abort: () => void } | null>(null);
+
+  useEffect(() => {
+    setText(""); setDone(false); setError(null);
+    const ctl = streamSSE("/api/fund-analyze", { code, language }, {
+      onEvent: (ev, data) => {
+        if (ev === "token") setText((x) => x + (data?.text ?? ""));
+        else if (ev === "done") setDone(true);
+        else if (ev === "error") setError(data?.message ?? "error");
+      },
+      onError: (e) => setError(e.message),
+    });
+    ref.current = ctl;
+    return () => ctl.abort();
+  }, [code, language, nonce]);
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-5">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-heading">
+        <Sparkles className="h-4 w-4 text-accent" />
+        {t("fund.review")}
+        {!done && !error && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
+        {done && <CheckCircle2 className="h-3.5 w-3.5 text-bull" />}
+      </div>
+      {error ? (
+        <div className="flex items-center gap-2 text-sm text-bear"><AlertCircle className="h-4 w-4" />{error}</div>
+      ) : text ? (
+        <div className="prose-tight max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
+      ) : (
+        <div className="text-sm text-muted">{t("fund.reviewing")}</div>
+      )}
+    </div>
   );
 }
 

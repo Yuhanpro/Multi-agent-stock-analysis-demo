@@ -62,6 +62,7 @@ def _mode_label(mode: str, language: str) -> str:
         "serenity": "Serenity 产业链" if zh else "Serenity Chain",
         "debate": "多智能体辩论" if zh else "Multi-Agent Debate",
         "diagnose": "持仓诊断" if zh else "Position Diagnosis",
+        "fund": "基金点评" if zh else "Fund Review",
     }.get(mode, mode)
 
 

@@ -23,6 +23,7 @@ from openai import AsyncOpenAI
 
 from app.config import get_settings
 from app.services.financials import Financials, format_for_prompt
+from app.services.funds import Fund
 from app.services.market_data import Snapshot
 
 log = logging.getLogger(__name__)
@@ -335,6 +336,98 @@ async def stream_quick(
         "input_tokens": in_tok,
         "output_tokens": out_tok,
         "cached_input_tokens": cached,
+        "cost_usd": round(estimate_cost_usd(model, in_tok, out_tok, cached), 6),
+        "stop_reason": stop_reason or "stop",
+    }
+
+
+_FUND_SYSTEM = (
+    "你是一位严谨的基金分析师。基于提供的基金数据,做客观、结构化的分析,覆盖:"
+    "1) 持仓集中度与前十大重仓;2) 行业/风格暴露与押注;3) 基金经理、公司、规模与流动性;"
+    "4) 多周期业绩与相对业绩基准的超额;5) 最大回撤与风险特征;6) 费率与性价比;"
+    "7) 适合的投资者与主要风险。要点式输出,先给一句话总体结论。明确说明这不构成投资建议。"
+)
+
+
+def _format_fund_for_prompt(f: Fund) -> str:
+    def pct(v):
+        return f"{v*100:.2f}%" if v is not None else "n/a"
+
+    order = ["1m", "3m", "6m", "1y", "ytd", "since"]
+    rets = " · ".join(f"{k}:{pct(f.returns[k])}" for k in order if k in f.returns)
+    conc = sum(h.pct or 0 for h in f.holdings)
+    holds = "; ".join(f"{h.name} {h.pct:.2f}%" for h in f.holdings if h.pct is not None)
+    rt = ""
+    if f.realtime and f.realtime.price is not None:
+        rt = f"\n- ETF 现价 {f.realtime.price} · IOPV {f.realtime.iopv} · 折溢价率 {f.realtime.premium}%"
+    return (
+        f"## 基金数据\n"
+        f"- {f.name}({f.code}) · 类型 {f.type or 'n/a'}\n"
+        f"- 经理 {f.manager or 'n/a'} · 公司 {f.company or 'n/a'} · 规模 {f.scale or 'n/a'} · 成立 {f.inception or 'n/a'}\n"
+        f"- 业绩基准: {f.benchmark or 'n/a'}\n"
+        f"- 多周期收益: {rets or 'n/a'}\n"
+        f"- 最大回撤(成立来): {pct(f.max_drawdown)}\n"
+        f"- 前十大重仓(占净值,合计 {conc:.1f}%): {holds or 'n/a'}{rt}\n"
+    )
+
+
+async def stream_fund_review(
+    *, fund: Fund, model: str | None = None, language: str = "en",
+) -> AsyncIterator[tuple[str, dict]]:
+    """Fund-specific LLM review (reuses the DeepSeek streaming + cost model)."""
+    settings = get_settings()
+    if not settings.deepseek_api_key:
+        yield "error", {"message": "DEEPSEEK_API_KEY not configured on server"}
+        return
+    model = model or settings.quick_think_llm
+
+    user_text = _format_fund_for_prompt(fund)
+    user_text += f"\n## 任务\n\n请分析基金 {fund.name}({fund.code})。"
+    if (language or "en").lower().startswith("zh"):
+        user_text += "\n**用简体中文输出。** 专业术语可保留英文。\n"
+    else:
+        user_text += "\n**Write the entire analysis in English.**\n"
+
+    yield "meta", {"model": model, "skill": "fund"}
+
+    client = AsyncOpenAI(
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        http_client=httpx.AsyncClient(trust_env=False),
+    )
+    usage = None
+    stop_reason = None
+    try:
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": _FUND_SYSTEM}, {"role": "user", "content": user_text}],
+            max_tokens=3072,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            if chunk.usage is not None:
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.delta and choice.delta.content:
+                yield "token", {"text": choice.delta.content}
+            if choice.finish_reason:
+                stop_reason = choice.finish_reason
+    except Exception as e:
+        log.exception("fund review stream failed")
+        yield "error", {"message": f"upstream error: {e}"}
+        return
+
+    in_tok = usage.prompt_tokens if usage else 0
+    out_tok = usage.completion_tokens if usage else 0
+    cached = 0
+    if usage is not None:
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+    yield "done", {
+        "input_tokens": in_tok, "output_tokens": out_tok, "cached_input_tokens": cached,
         "cost_usd": round(estimate_cost_usd(model, in_tok, out_tok, cached), 6),
         "stop_reason": stop_reason or "stop",
     }

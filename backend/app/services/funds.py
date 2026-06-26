@@ -18,26 +18,85 @@ log = logging.getLogger(__name__)
 
 _CACHE: dict[str, tuple[float, "Fund"]] = {}
 _TTL = 6 * 3600
-_NAMES_CACHE: tuple[float, dict[str, tuple[str, str]]] | None = None
+# Full fund list (code/name/type/pinyin), loaded once. Powers both the ETF
+# name backfill and fund search. Cached 24h.
+_TABLE_CACHE: tuple[float, list[dict], dict[str, tuple[str, str]]] | None = None
 
 
-def _names() -> dict[str, tuple[str, str]]:
-    """code -> (简称, 类型) from the full fund list; used to backfill ETFs where
-    the xueqiu basic-info endpoint returns nothing. Cached 24h."""
-    global _NAMES_CACHE
-    if _NAMES_CACHE and time.time() - _NAMES_CACHE[0] < 24 * 3600:
-        return _NAMES_CACHE[1]
+def _fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
+    global _TABLE_CACHE
+    if _TABLE_CACHE and time.time() - _TABLE_CACHE[0] < 24 * 3600:
+        return _TABLE_CACHE[1], _TABLE_CACHE[2]
     import akshare as ak
 
-    d: dict[str, tuple[str, str]] = {}
+    rows: list[dict] = []
+    cmap: dict[str, tuple[str, str]] = {}
     try:
         df = ak.fund_name_em()
-        cols = list(df.columns)
+        cols = list(df.columns)  # 基金代码 / 拼音缩写 / 基金简称 / 基金类型 / 拼音全称
         for _, r in df.iterrows():
-            d[str(r[cols[0]])] = (str(r[cols[2]]), str(r[cols[3]]))
+            code, py, name, typ = str(r[cols[0]]), str(r[cols[1]]), str(r[cols[2]]), str(r[cols[3]])
+            rows.append({"code": code, "name": name, "type": typ, "py": py.upper()})
+            cmap[code] = (name, typ)
     except Exception as e:
         log.warning("fund_name_em failed: %s", e)
-    _NAMES_CACHE = (time.time(), d)
+    _TABLE_CACHE = (time.time(), rows, cmap)
+    return rows, cmap
+
+
+def search_funds(q: str, limit: int = 12) -> list[dict]:
+    q = (q or "").strip()
+    if not q:
+        return []
+    qu = q.upper()
+    rows, _ = _fund_table()
+    scored: list[tuple[int, dict]] = []
+    for r in rows:
+        code, name, py = r["code"], r["name"], r["py"]
+        score = 0
+        if code == q:
+            score = 100
+        elif code.startswith(q):
+            score = 80
+        elif name.startswith(q):
+            score = 70
+        elif q in name:
+            score = 50
+        elif qu and qu in py:
+            score = 40
+        elif qu in code:
+            score = 30
+        if score:
+            scored.append((score, {"code": code, "name": name, "type": r["type"]}))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [d for _, d in scored[:limit]]
+
+
+_ETF_CACHE: tuple[float, dict[str, dict]] | None = None
+
+
+def _etf_spot() -> dict[str, dict]:
+    """code -> realtime fields for ETFs (fund_etf_spot_em). Cached 60s."""
+    global _ETF_CACHE
+    if _ETF_CACHE and time.time() - _ETF_CACHE[0] < 60:
+        return _ETF_CACHE[1]
+    import akshare as ak
+
+    d: dict[str, dict] = {}
+    try:
+        df = ak.fund_etf_spot_em()
+        for _, r in df.iterrows():
+            d[str(r.get("代码"))] = {
+                "price": _safe_float(r.get("最新价")),
+                "iopv": _safe_float(r.get("IOPV实时估值")),
+                "premium": _safe_float(r.get("基金折价率")),
+                "change_pct": _safe_float(r.get("涨跌幅")),
+                "amount": _safe_float(r.get("成交额")),
+                "updated": str(r.get("更新时间")) if r.get("更新时间") is not None else None,
+            }
+    except Exception as e:
+        log.warning("etf spot failed: %s", e)
+    _ETF_CACHE = (time.time(), d)
     return d
 
 
@@ -51,6 +110,15 @@ class FundHolding(BaseModel):
     ticker: str
     name: str
     pct: float | None = None  # % of NAV
+
+
+class FundRealtime(BaseModel):
+    price: float | None = None
+    iopv: float | None = None
+    premium: float | None = None      # 折价率 %(正=折价,在 IOPV 下方)
+    change_pct: float | None = None   # %
+    amount: float | None = None
+    updated: str | None = None
 
 
 class Fund(BaseModel):
@@ -68,6 +136,9 @@ class Fund(BaseModel):
     holdings: list[FundHolding] = []
     holdings_quarter: str | None = None
     returns: dict[str, float | None] = {}  # decimals
+    max_drawdown: float | None = None  # decimal, negative (since inception)
+    is_etf: bool = False
+    realtime: FundRealtime | None = None
     source: str = "akshare"
 
 
@@ -112,7 +183,19 @@ def get_fund(code: str) -> Fund:
     code = code.strip()
     hit = _CACHE.get(code)
     if hit and time.time() - hit[0] < _TTL:
-        return hit[1]
+        f = hit[1]
+    else:
+        f = _build_fund(code)
+        _CACHE[code] = (time.time(), f)
+    # ETF realtime overlay — etf_spot is 60s-cached, fresher than the 6h fund cache.
+    et = _etf_spot().get(code)
+    if et and et.get("price") is not None:
+        f.is_etf = True
+        f.realtime = FundRealtime(**et)
+    return f
+
+
+def _build_fund(code: str) -> Fund:
     import akshare as ak
 
     f = Fund(code=code)
@@ -135,7 +218,7 @@ def get_fund(code: str) -> Fund:
 
     # Backfill name/type from the full fund list (ETFs lack xueqiu basic info).
     if not f.name or f.name == code:
-        nm = _names().get(code)
+        nm = _fund_table()[1].get(code)
         if nm:
             f.name = nm[0] or f.name or code
             f.type = f.type or nm[1]
@@ -165,6 +248,16 @@ def get_fund(code: str) -> Fund:
             "ytd": _ytd_return(f.nav),
             "since": (f.nav[-1].nav / f.nav[0].nav - 1) if (f.nav[-1].nav and f.nav[0].nav) else None,
         }.items() if v is not None}
+        # max drawdown since inception (peak-to-trough on unit NAV).
+        peak = 0.0
+        mdd = 0.0
+        for p in f.nav:
+            if p.nav is None:
+                continue
+            peak = max(peak, p.nav)
+            if peak > 0:
+                mdd = min(mdd, p.nav / peak - 1)
+        f.max_drawdown = round(mdd, 4) if mdd < 0 else None
 
     # ---- holdings (latest quarter, top 10) ----
     try:
@@ -186,7 +279,6 @@ def get_fund(code: str) -> Fund:
     except Exception as e:
         log.warning("fund holdings failed for %s: %s", code, e)
 
-    _CACHE[code] = (time.time(), f)
     return f
 
 
