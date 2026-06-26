@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.routes import (
     admin,
     auth,
+    chat,
     debate,
     financials,
     funds,
@@ -50,6 +51,7 @@ app.include_router(financials.router, prefix="/api", tags=["financials"])
 app.include_router(funds.router, prefix="/api", tags=["funds"])
 app.include_router(market_overview.router, prefix="/api", tags=["market-overview"])
 app.include_router(quick.router, prefix="/api", tags=["quick"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(debate.router, prefix="/api", tags=["debate"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])

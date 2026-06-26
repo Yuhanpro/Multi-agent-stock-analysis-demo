@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { streamSSE } from "@/lib/sse";
+import { FollowupChat } from "@/components/followup-chat";
 import { companyShortName } from "@/lib/company-names";
 import type { Market } from "@/lib/api";
 import { useT, type Lang } from "@/lib/i18n";
@@ -129,6 +130,12 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
           </div>
         )}
       </div>
+
+      {done && text && !error && (
+        <div className="px-5 pb-5">
+          <FollowupChat ticker={ticker} market={market} language={language} report={text} />
+        </div>
+      )}
     </div>
   );
 }

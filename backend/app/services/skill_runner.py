@@ -433,6 +433,104 @@ async def stream_fund_review(
     }
 
 
+_FOLLOWUP_SYSTEM = """你是一位严谨、务实的股票投资分析助手,正在就某一只具体股票与用户进行多轮追问。
+
+背景:你此前已为用户生成过一份完整的深度分析报告(见下方上下文)。现在用户会基于这份报告或最新行情继续追问。
+
+回答原则:
+- 直接聚焦用户当前的问题,不要重复整篇报告;需要时只引用相关结论。
+- 只依据上下文给出的行情快照与报告事实作答;没有的数据就明说"暂无该数据",绝不编造数字或新闻。
+- 可以给出有判断力的看法(估值是否合理、主要风险、值得跟踪的信号),但要点明不确定性。
+- 不构成投资建议;涉及买卖决策时提醒用户结合自身情况判断。
+- 简洁专业:通常 2–5 段或要点列表,能一句说清就不展开。
+- 用与用户提问相同的语言回答。"""
+
+
+async def stream_followup(
+    *,
+    snapshot: Snapshot,
+    report: str | None,
+    history: list[dict],
+    question: str,
+    model: str | None = None,
+    language: str = "en",
+) -> AsyncIterator[tuple[str, dict]]:
+    """Multi-turn follow-up Q&A about a stock, grounded in its snapshot and the
+    prior analysis report. Reuses the DeepSeek streaming + cost model."""
+    settings = get_settings()
+    if not settings.deepseek_api_key:
+        yield "error", {"message": "DEEPSEEK_API_KEY not configured on server"}
+        return
+    model = model or settings.quick_think_llm
+
+    sys = _FOLLOWUP_SYSTEM
+    if (language or "en").lower().startswith("zh"):
+        sys += "\n\n**用简体中文回答。** 专业术语可保留英文。"
+    else:
+        sys += "\n\n**Answer in English.** Keep it concise."
+
+    context_block = "## 股票上下文(实时行情快照)\n\n" + _format_snapshot_for_prompt(snapshot)
+    if report and report.strip():
+        # Cap the embedded report so a very long debate transcript can't blow the
+        # context window; the tail (conclusions) matters most.
+        rpt = report.strip()
+        if len(rpt) > 24000:
+            rpt = rpt[-24000:]
+        context_block += "\n\n## 此前生成的分析报告(供你引用,勿照抄)\n\n" + rpt
+
+    messages: list[dict] = [{"role": "system", "content": sys + "\n\n" + context_block}]
+    for turn in (history or [])[-10:]:  # cap history to keep cost/latency bounded
+        role = turn.get("role")
+        content = (turn.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": (question or "").strip()})
+
+    yield "meta", {"model": model, "skill": "followup"}
+
+    client = AsyncOpenAI(
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        http_client=httpx.AsyncClient(trust_env=False),
+    )
+    usage = None
+    stop_reason = None
+    try:
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=2048,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            if chunk.usage is not None:
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.delta and choice.delta.content:
+                yield "token", {"text": choice.delta.content}
+            if choice.finish_reason:
+                stop_reason = choice.finish_reason
+    except Exception as e:
+        log.exception("followup stream failed")
+        yield "error", {"message": f"upstream error: {e}"}
+        return
+
+    in_tok = usage.prompt_tokens if usage else 0
+    out_tok = usage.completion_tokens if usage else 0
+    cached = 0
+    if usage is not None:
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+    yield "done", {
+        "input_tokens": in_tok, "output_tokens": out_tok, "cached_input_tokens": cached,
+        "cost_usd": round(estimate_cost_usd(model, in_tok, out_tok, cached), 6),
+        "stop_reason": stop_reason or "stop",
+    }
+
+
 def sse_event(event: str, data: dict) -> dict:
     """Shape expected by sse_starlette.EventSourceResponse.
 
