@@ -437,6 +437,70 @@ export async function fetchAdminFeedback(): Promise<Feedback[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/feedback`, { headers: authHeaders() }));
 }
 
+// ---------- price alerts ----------------------------------------------------
+
+export interface Alert {
+  id: number;
+  ticker: string;
+  market: Market;
+  up_pct: number | null;
+  down_pct: number | null;
+  target_above: number | null;
+  target_below: number | null;
+  enabled: boolean;
+  note: string;
+  last_fired_at: string | null;
+}
+
+export async function fetchAlerts(): Promise<Alert[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/alerts`, { headers: authHeaders() }));
+}
+
+export async function saveAlert(body: {
+  ticker: string; market: Market;
+  up_pct?: number | null; down_pct?: number | null;
+  target_above?: number | null; target_below?: number | null;
+  enabled?: boolean;
+}): Promise<Alert> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/alerts`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    })
+  );
+}
+
+export async function deleteAlert(market: Market, ticker: string): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/alerts/${market}/${encodeURIComponent(ticker)}`, {
+      method: "DELETE", headers: authHeaders(),
+    })
+  );
+}
+
+export async function getPushChannel(): Promise<{ provider: string | null; key: string | null }> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/account/push`, { headers: authHeaders() }));
+}
+
+export async function setPushChannel(provider: string, key: string): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/account/push`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ provider, key }),
+    })
+  );
+}
+
+export async function clearPushChannel(): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/account/push`, { method: "DELETE", headers: authHeaders() }));
+}
+
+export async function testPushChannel(): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/account/push/test`, { method: "POST", headers: authHeaders() }));
+}
+
 // ---------- funds -----------------------------------------------------------
 
 export interface NavPoint { date: string; nav: number | null; growth: number | null; }

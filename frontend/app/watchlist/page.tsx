@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Bell, ExternalLink, Loader2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import {
   addWatchlistItem,
   deleteWatchlistItem,
+  fetchAlerts,
   fetchWatchlist,
   patchWatchlistItem,
   searchSymbols,
+  type Alert,
   type AnalysisMode,
   type Market,
   type SymbolSuggestion,
@@ -20,6 +22,7 @@ import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { LoginPrompt } from "@/components/auth-widget";
 import { StockCompare } from "@/components/stock-compare";
+import { PushSettings, AlertEditor } from "@/components/alert-settings";
 
 const MODE_OPTIONS: AnalysisMode[] = ["snapshot", "quick", "serenity", "debate"];
 
@@ -39,6 +42,7 @@ export default function WatchlistPage() {
   const [suggestions, setSuggestions] = useState<SymbolSuggestion[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [view, setView] = useState<"list" | "compare">("list");
+  const [alerts, setAlerts] = useState<Alert[]>([]);
 
   useEffect(() => {
     if (user) refresh();
@@ -68,12 +72,18 @@ export default function WatchlistPage() {
     setLoading(true);
     setError(null);
     try {
-      setItems(await fetchWatchlist());
+      const [w, al] = await Promise.all([fetchWatchlist(), fetchAlerts().catch(() => [])]);
+      setItems(w);
+      setAlerts(al);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function refreshAlerts() {
+    try { setAlerts(await fetchAlerts()); } catch {}
   }
 
   function chooseSuggestion(s: SymbolSuggestion) {
@@ -116,6 +126,11 @@ export default function WatchlistPage() {
     () => (items.some((x) => x.enabled) ? items.filter((x) => x.enabled) : items),
     [items]
   );
+  const alertMap = useMemo(() => {
+    const m: Record<string, Alert> = {};
+    alerts.forEach((a) => { m[`${a.market}:${a.ticker}`] = a; });
+    return m;
+  }, [alerts]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -159,6 +174,7 @@ export default function WatchlistPage() {
         </section>
       ) : (
       <>
+      <PushSettings />
       <section className="mt-6 rounded-xl border border-border bg-surface p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_120px_1.4fr_auto]">
           <div className="relative">
@@ -243,7 +259,14 @@ export default function WatchlistPage() {
         ) : (
           <div className="divide-y divide-border/70">
             {items.map((item) => (
-              <WatchRow key={`${item.market}:${item.ticker}`} item={item} onPatch={patch} onDelete={del} />
+              <WatchRow
+                key={`${item.market}:${item.ticker}`}
+                item={item}
+                alert={alertMap[`${item.market}:${item.ticker}`]}
+                onPatch={patch}
+                onDelete={del}
+                onAlertChange={refreshAlerts}
+              />
             ))}
           </div>
         )}
@@ -254,19 +277,24 @@ export default function WatchlistPage() {
   );
 }
 
-function WatchRow({ item, onPatch, onDelete }: {
+function WatchRow({ item, alert, onPatch, onDelete, onAlertChange }: {
   item: WatchlistItem;
+  alert?: Alert;
   onPatch: (item: WatchlistItem, patch: Partial<Omit<WatchlistItem, "ticker" | "market">>) => void;
   onDelete: (item: WatchlistItem) => void;
+  onAlertChange: () => void;
 }) {
   const { t } = useT();
+  const [alertOpen, setAlertOpen] = useState(false);
   const defaultMode = item.modes[0] ?? "snapshot";
   const href = `/?ticker=${encodeURIComponent(item.ticker)}&market=${item.market}&mode=${defaultMode}&run=1`;
   const shortName = companyShortName(item.ticker, item.market, item.note);
   const label = shortName ? `${item.ticker} · ${shortName}` : item.ticker;
+  const hasAlert = !!alert && (alert.up_pct != null || alert.down_pct != null || alert.target_above != null || alert.target_below != null);
 
   return (
-    <div className={cn("grid gap-3 p-4 md:grid-cols-[1fr_220px_auto] md:items-center", !item.enabled && "opacity-45")}>
+    <div className={cn("p-4", !item.enabled && "opacity-45")}>
+    <div className="grid gap-3 md:grid-cols-[1fr_220px_auto] md:items-center">
       <div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-base font-semibold">{label}</span>
@@ -305,6 +333,16 @@ function WatchRow({ item, onPatch, onDelete }: {
       </div>
 
       <div className="flex items-center gap-2 justify-end">
+        <button
+          onClick={() => setAlertOpen((o) => !o)}
+          title={t("alert.title")}
+          className={cn(
+            "rounded-lg border px-3 py-2 text-xs transition-colors",
+            hasAlert ? "border-accent/60 bg-accent/10 text-accent" : "border-border text-muted hover:text-fg"
+          )}
+        >
+          <Bell className="h-3.5 w-3.5" />
+        </button>
         <Link
           href={href}
           className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs text-muted hover:text-fg"
@@ -319,6 +357,10 @@ function WatchRow({ item, onPatch, onDelete }: {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+    </div>
+    {alertOpen && (
+      <AlertEditor ticker={item.ticker} market={item.market} alert={alert} onChange={onAlertChange} />
+    )}
     </div>
   );
 }

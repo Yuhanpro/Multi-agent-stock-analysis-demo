@@ -85,6 +85,24 @@ CREATE TABLE IF NOT EXISTS feedback (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL,
+    ticker         TEXT NOT NULL,
+    market         TEXT NOT NULL,
+    up_pct         REAL,            -- fire when intraday change >= +up_pct (%)
+    down_pct       REAL,            -- fire when intraday change <= -down_pct (%)
+    target_above   REAL,            -- fire when price >= target_above
+    target_below   REAL,            -- fire when price <= target_below
+    enabled        INTEGER NOT NULL DEFAULT 1,
+    last_fired_at  TEXT,            -- cooldown bookkeeping
+    note           TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL,
+    UNIQUE (user_id, ticker, market),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_enabled ON alerts(enabled);
 """
 
 
@@ -112,6 +130,10 @@ def init_db() -> None:
         ucols = {r["name"] for r in _conn.execute("PRAGMA table_info(users)").fetchall()}
         if "is_admin" not in ucols:
             _conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+        if "push_provider" not in ucols:
+            _conn.execute("ALTER TABLE users ADD COLUMN push_provider TEXT")
+        if "push_key" not in ucols:
+            _conn.execute("ALTER TABLE users ADD COLUMN push_key TEXT")
         _conn.commit()
 
 

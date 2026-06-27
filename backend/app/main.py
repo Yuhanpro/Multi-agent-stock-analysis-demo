@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routes import (
     admin,
+    alerts,
     auth,
     chat,
     debate,
@@ -55,6 +56,11 @@ from app.services.funds import warm_caches as _warm_funds  # noqa: E402
 
 _threading.Thread(target=_warm_funds, daemon=True).start()
 
+# Background price-alert engine (polls A-share spot during CN trading hours).
+from app.services import alert_scheduler as _alert_scheduler  # noqa: E402
+
+_alert_scheduler.start()
+
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(snapshot.router, prefix="/api", tags=["snapshot"])
 app.include_router(financials.router, prefix="/api", tags=["financials"])
@@ -63,6 +69,7 @@ app.include_router(market_overview.router, prefix="/api", tags=["market-overview
 app.include_router(quick.router, prefix="/api", tags=["quick"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
+app.include_router(alerts.router, prefix="/api", tags=["alerts"])
 app.include_router(debate.router, prefix="/api", tags=["debate"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])
