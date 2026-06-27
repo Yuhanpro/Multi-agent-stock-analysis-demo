@@ -455,7 +455,14 @@ def _cn_snapshot(ticker: str) -> Snapshot:
             rev_row = by_ind.get("营业总收入")
             period = None
             if rev_row is not None:
-                for d in date_cols:
+                # Prefer the latest ANNUAL (FY) column so the headline revenue /
+                # net income / YoY is a full-year figure — coherent with the annual
+                # EPS / PE / ROE — rather than a single cumulative quarter (e.g. Q1
+                # ¥547亿 reading as if it were the full year). Fall back to the
+                # newest period only when no annual report exists yet.
+                ordered = [d for d in date_cols if d.endswith("1231")] + \
+                          [d for d in date_cols if not d.endswith("1231")]
+                for d in ordered:
                     if _safe_float(rev_row.get(d)) is not None:
                         period = d
                         break
