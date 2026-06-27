@@ -56,7 +56,7 @@ export default function OverviewPage() {
           <Flame className="h-4 w-4" />
           <span className="text-sm font-semibold">{t("ov.title")}</span>
         </div>
-        <p className="max-w-2xl text-sm leading-6 text-body">{t("ov.lead")}</p>
+        <p className="max-w-2xl text-sm leading-6 text-body">{t(`ov.lead.${market}` as never)}</p>
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
             {MARKETS.map((m) => (
