@@ -406,19 +406,20 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     except Exception as e:
         log.warning("akshare stock_individual_info_em failed for %s: %s", code, e)
 
+    # Dividend yield — stock_a_indicator_lg was removed from akshare. Use the
+    # EastMoney 分红配股 detail, whose 现金分红-股息率 column is a per-period
+    # decimal (e.g. 0.034). Take the most recent period that actually paid.
     try:
-        ind = ak.stock_a_indicator_lg(symbol=code)
-        if ind is not None and not ind.empty:
-            row = ind.iloc[-1]
-            fundamentals.pe = _safe_float(row.get("pe_ttm"))
-            fundamentals.pb = _safe_float(row.get("pb"))
-            fundamentals.market_cap = fundamentals.market_cap or _safe_float(row.get("total_mv")) or _safe_float(row.get("total_market_value"))
-            fundamentals.dividend_yield = _safe_float(row.get("dv_ratio"))
-            if fundamentals.dividend_yield is not None:
-                # akshare returns percent; normalize to decimal
-                fundamentals.dividend_yield = fundamentals.dividend_yield / 100.0
+        fh = ak.stock_fhps_detail_em(symbol=code)
+        if fh is not None and not fh.empty and "现金分红-股息率" in fh.columns:
+            dv = next(
+                (v for v in (_safe_float(x) for x in reversed(fh["现金分红-股息率"].tolist())) if v),
+                None,
+            )
+            if dv is not None:
+                fundamentals.dividend_yield = dv
     except Exception as e:
-        log.warning("akshare stock_a_indicator_lg failed for %s: %s", code, e)
+        log.warning("akshare fhps dividend failed for %s: %s", code, e)
 
     try:
         fin = ak.stock_financial_analysis_indicator_em(symbol=code)
