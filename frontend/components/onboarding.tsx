@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, Clock, Flame, MessageCircleQuestion, PieChart, Sparkles, Star, Stethoscope, X } from "lucide-react";
+import { BarChart2, Bell, Clock, Flame, MessageCircleQuestion, MessagesSquare, PieChart, Sparkles, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /** First-visit onboarding modal. Content is inline-bilingual to keep i18n lean. */
@@ -21,8 +21,8 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
     },
     {
       icon: PieChart,
-      zh: "基金(新):搜名字或代码(如「全球科技」「易方达」「摩根太平洋」),覆盖 A股公募 + QDII海外 + 香港互认基金,看净值曲线、重仓股、ETF 实时溢价与 AI 点评。",
-      en: "Funds (new): search by name or code (e.g. \"global tech\", \"E Fund\", \"摩根太平洋\") — CN funds + overseas QDII + HK mutual-recognition funds, with NAV curve, holdings, ETF realtime premium and an AI review.",
+      zh: "基金(新):搜名字或代码(如「全球科技」「易方达」「摩根太平洋」),覆盖 A股公募 + QDII海外 + 香港互认基金,看净值曲线、重仓股、ETF 实时溢价与 AI 点评;还能「加入对比」多只基金并排比收益。",
+      en: "Funds (new): search by name or code — CN funds + overseas QDII + HK mutual-recognition funds, with NAV curve, holdings, ETF realtime premium and an AI review; add several to compare side by side.",
     },
     {
       icon: Stethoscope,
@@ -30,14 +30,24 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
       en: "Position Diagnosis: enter your cost basis → an add/hold/trim/sell call based on forward value (not breaking even).",
     },
     {
+      icon: Bell,
+      zh: "价格提醒(新,需登录):在「自选」里给股票设涨/跌幅或到价条件,绑定微信(Server酱/PushPlus)后,A股交易时段触发即推送到你微信。",
+      en: "Price alerts (new, sign-in): set up/down % or target-price rules on watchlist stocks; bind WeChat (Server酱/PushPlus) and get pushed when an A-share rule triggers in trading hours.",
+    },
+    {
       icon: Flame,
-      zh: "市场热度:今日热门行业、成交最活跃的票,以及美股/港股知名公司涨跌,点一下直接分析。",
-      en: "Market Heat: today's hot industries, most-active names, and major US/HK movers — click to analyze.",
+      zh: "市场热度:分「行业与指数」(指数、涨跌/涨停情绪、热门行业、活跃个股)和「财经新闻」(按 A股/美股/港股分流的实时快讯)两大模块。",
+      en: "Market Heat: two modules — Indices & sectors (indices, breadth, hot industries, active names) and Market news (live headlines filtered by CN/US/HK).",
     },
     {
       icon: Star,
-      zh: "自选 + 历史(需登录):收藏关注的票;登录后跑的分析自动存「历史」,可分享链接、导出长图。",
-      en: "Watchlist + History (sign-in): save tickers; signed-in analyses are kept in History — shareable & exportable.",
+      zh: "自选 + 对比 + 历史(需登录):收藏关注的票,「对比」视图并排比 PE/ROE/股息等;登录后跑的分析自动存「历史」,可分享链接、导出长图。",
+      en: "Watchlist + Compare + History (sign-in): save tickers and compare PE/ROE/dividend side by side; signed-in analyses are kept in History — shareable & exportable.",
+    },
+    {
+      icon: MessagesSquare,
+      zh: "建议反馈:有想法或想要的新功能,在「建议反馈」里留言,我们都会看。",
+      en: "Feedback: drop suggestions or feature requests on the Feedback page — we read them all.",
     },
   ];
 
