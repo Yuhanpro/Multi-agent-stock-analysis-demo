@@ -314,18 +314,23 @@ def _cn_financials(ticker: str) -> Financials:
     fin.quarterly = [make_period(c) for c in quarter_cols]
 
     latest = date_cols[0] if date_cols else None
+    # Flow-over-stock ratios (ROE/ROA/turnover) must come from the latest ANNUAL
+    # column — the source reports them per-period, so a quarterly column gives the
+    # single-quarter figure (ROE ~10% vs the true annual ~33%). Margins, balance-
+    # sheet ratios and YoY growth are fine (and freshest) at the latest column.
+    latest_annual = next((c for c in date_cols if c.endswith("1231")), latest)
     if latest:
         fin.ratios = {k: v for k, v in {
-            "roe": _pct_dec(val(roe_key, latest)) if roe_key else None,
-            "roa": _pct_dec(val("总资产报酬率(ROA)", latest)),
+            "roe": _pct_dec(val(roe_key, latest_annual)) if roe_key else None,
+            "roa": _pct_dec(val("总资产报酬率(ROA)", latest_annual)),
             "gross_margin": _pct_dec(val("毛利率", latest)),
             "operating_margin": _pct_dec(val("营业利润率", latest)),
             "net_margin": _pct_dec(val("销售净利率", latest)),
             "debt_to_assets": _pct_dec(val("资产负债率", latest)),
             "current_ratio": _safe_float(val("流动比率", latest)),
             "quick_ratio": _safe_float(val("速动比率", latest)),
-            "asset_turnover": _safe_float(val("总资产周转率", latest)),
-            "inventory_turnover": _safe_float(val("存货周转率", latest)),
+            "asset_turnover": _safe_float(val("总资产周转率", latest_annual)),
+            "inventory_turnover": _safe_float(val("存货周转率", latest_annual)),
             "revenue_yoy": _pct_dec(val("营业总收入增长率", latest)),
             "net_income_yoy": _pct_dec(val("归属母公司净利润增长率", latest)),
         }.items() if v is not None}
@@ -455,5 +460,5 @@ def format_for_prompt(fin: Financials) -> str:
             f"{k}={v*100:.2f}%" if k.endswith(("margin", "roe", "roa", "yoy", "to_assets")) else f"{k}={v:.2f}"
             for k, v in fin.ratios.items()
         )
-        parts.append(f"最新比率:{rs}")
+        parts.append(f"关键比率(ROE/ROA/周转率为最新年度,毛利/净利/负债/增速为最新一期):{rs}")
     return "\n".join(parts) + "\n"
