@@ -121,19 +121,38 @@ def _indices() -> list[IndexQuote]:
     return out
 
 
-def _news(limit: int = 24) -> list[NewsItem]:
-    """东方财富全球财经快讯 — title/summary/time/link. Global, used on all markets."""
+# Keyword buckets to tag the (China-centric) global feed by market. There is no
+# per-market news API reachable from the VPS, so we classify each item: HK first,
+# then US, else CN (the default bucket — A-share + global macro).
+_US_KW = ("美股", "纳斯达克", "纳指", "道指", "道琼斯", "标普", "美联储", "鲍威尔", "华尔街",
+          "苹果公司", "特斯拉", "英伟达", "美国经济", "美国股市", "非农", "美债", "美国市场")
+_HK_KW = ("港股", "恒生", "恒指", "香港", "港交所", "南向", "H股", "港元")
+
+
+def _classify_news(text: str) -> str:
+    if any(k in text for k in _HK_KW):
+        return "HK"
+    if any(k in text for k in _US_KW):
+        return "US"
+    return "CN"
+
+
+def _news(market: str = "CN", limit: int = 24) -> list[NewsItem]:
+    """东财全球财经快讯,按市场关键词过滤。CN=默认桶(A股+宏观);US/HK=对应标签。"""
     import akshare as ak
 
     df = ak.stock_info_global_em()
     if df is None or df.empty:
         return []
     out: list[NewsItem] = []
-    for _, r in df.head(limit).iterrows():
+    for _, r in df.iterrows():
         title = str(r.get("标题") or "").strip()
         if not title:
             continue
         summ = r.get("摘要")
+        text = title + " " + (str(summ) if summ is not None else "")
+        if _classify_news(text) != market:
+            continue
         url = r.get("链接")
         out.append(NewsItem(
             title=title,
@@ -141,6 +160,8 @@ def _news(limit: int = 24) -> list[NewsItem]:
             time=str(r.get("发布时间")) if r.get("发布时间") is not None else None,
             url=str(url) if url is not None else None,
         ))
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -283,7 +304,7 @@ def get_overview(market: str = "CN") -> MarketOverview:
     except Exception as e:
         log.warning("overview %s failed: %s", market, e)
     try:
-        ov.news = _news()
+        ov.news = _news(market)
     except Exception as e:
         log.warning("news failed: %s", e)
     try:
