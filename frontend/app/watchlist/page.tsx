@@ -19,6 +19,7 @@ import { cn } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { LoginPrompt } from "@/components/auth-widget";
+import { StockCompare } from "@/components/stock-compare";
 
 const MODE_OPTIONS: AnalysisMode[] = ["snapshot", "quick", "serenity", "debate"];
 
@@ -37,6 +38,7 @@ export default function WatchlistPage() {
   });
   const [suggestions, setSuggestions] = useState<SymbolSuggestion[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [view, setView] = useState<"list" | "compare">("list");
 
   useEffect(() => {
     if (user) refresh();
@@ -110,6 +112,10 @@ export default function WatchlistPage() {
   }
 
   const enabledCount = useMemo(() => items.filter((x) => x.enabled).length, [items]);
+  const compareItems = useMemo(
+    () => (items.some((x) => x.enabled) ? items.filter((x) => x.enabled) : items),
+    [items]
+  );
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -123,14 +129,34 @@ export default function WatchlistPage() {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("watch.title")}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{t("watch.lead")}</p>
           </div>
-          <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted">
-            {items.length} {t("watch.total")} / {enabledCount} {t("watch.enabled")}
+          <div className="flex items-center gap-3">
+            <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
+              {(["list", "compare"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    view === v ? "bg-accent text-white" : "text-muted hover:text-heading"
+                  )}
+                >
+                  {t(v === "list" ? "watch.view.list" : "watch.view.compare")}
+                </button>
+              ))}
+            </div>
+            <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted">
+              {items.length} {t("watch.total")} / {enabledCount} {t("watch.enabled")}
+            </div>
           </div>
         </div>
       </header>
 
       {!authLoading && !user ? (
         <LoginPrompt />
+      ) : view === "compare" ? (
+        <section className="mt-6">
+          <StockCompare items={compareItems} />
+        </section>
       ) : (
       <>
       <section className="mt-6 rounded-xl border border-border bg-surface p-4">

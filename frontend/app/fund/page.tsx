@@ -5,8 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlertCircle, CheckCircle2, Loader2, PieChart, Search, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, PieChart, Scale, Search, Sparkles, X } from "lucide-react";
 import { fetchFund, searchFunds, type Fund, type FundSuggestion } from "@/lib/api";
+import { FundCompare } from "@/components/fund-compare";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { track } from "@/lib/track";
@@ -36,6 +37,26 @@ function FundInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewNonce, setReviewNonce] = useState(0);
+  const [compareCodes, setCompareCodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem("fund-compare");
+      if (s) setCompareCodes(JSON.parse(s));
+    } catch {}
+  }, []);
+
+  function persistCompare(next: string[]) {
+    setCompareCodes(next);
+    try { localStorage.setItem("fund-compare", JSON.stringify(next)); } catch {}
+  }
+  function toggleCompare(code: string) {
+    persistCompare(
+      compareCodes.includes(code)
+        ? compareCodes.filter((c) => c !== code)
+        : compareCodes.length >= 6 ? compareCodes : [...compareCodes, code]
+    );
+  }
 
   async function load(code: string) {
     const v = code.trim();
@@ -140,12 +161,26 @@ function FundInner() {
                   <span className="font-mono text-xs text-muted">{fund.code}</span>
                   {fund.type && <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">{fund.type}</span>}
                 </div>
-                <button
-                  onClick={() => setReviewNonce(Date.now())}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/85"
-                >
-                  <Sparkles className="h-3.5 w-3.5" /> {t("fund.review")}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleCompare(fund.code)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                      compareCodes.includes(fund.code)
+                        ? "border-accent bg-accent/10 text-accent"
+                        : "border-border text-muted hover:text-heading"
+                    )}
+                  >
+                    <Scale className="h-3.5 w-3.5" />
+                    {compareCodes.includes(fund.code) ? t("cmp.fund.added") : t("cmp.fund.add")}
+                  </button>
+                  <button
+                    onClick={() => setReviewNonce(Date.now())}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/85"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> {t("fund.review")}
+                  </button>
+                </div>
               </div>
               {(fund.manager || fund.scale || fund.company || fund.inception) && (
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
@@ -242,6 +277,31 @@ function FundInner() {
               </div>
             )}
           </>
+        )}
+
+        {compareCodes.length > 0 && (
+          <div className="space-y-3 border-t border-border/50 pt-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-heading">
+                <Scale className="h-4 w-4 text-accent" />{t("cmp.fund.title")}
+              </span>
+              {compareCodes.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => toggleCompare(c)}
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 font-mono text-xs text-body hover:border-bear/40 hover:text-bear"
+                >
+                  {c} <X className="h-3 w-3" />
+                </button>
+              ))}
+              <button onClick={() => persistCompare([])} className="text-xs text-muted hover:text-bear">{t("cmp.fund.clear")}</button>
+            </div>
+            {compareCodes.length < 2 ? (
+              <p className="text-xs text-muted/70">{t("cmp.fund.hint")}</p>
+            ) : (
+              <FundCompare codes={compareCodes} onRemove={(c) => toggleCompare(c)} />
+            )}
+          </div>
         )}
       </section>
     </main>
