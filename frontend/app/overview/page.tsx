@@ -2,12 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Flame, Loader2, Newspaper, TrendingUp } from "lucide-react";
+import { Flame, LineChart, Loader2, Newspaper, TrendingUp } from "lucide-react";
 import { fetchMarketOverview, type Market, type MarketOverview } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
 
 const MARKETS: Market[] = ["CN", "US", "HK"];
+
+type OvModule = "market" | "news";
+const MODULES: { id: OvModule; icon: typeof Flame; key: string }[] = [
+  { id: "market", icon: LineChart, key: "ov.mod.market" },
+  { id: "news", icon: Newspaper, key: "ov.mod.news" },
+];
 
 function yi(v: number | null): string {
   if (v == null) return "—";
@@ -28,6 +34,7 @@ function tone(v: number | null, market: Market): string {
 export default function OverviewPage() {
   const { t } = useT();
   const [market, setMarket] = useState<Market>("CN");
+  const [mod, setMod] = useState<OvModule>("market");
   const [data, setData] = useState<MarketOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,21 +57,46 @@ export default function OverviewPage() {
           <span className="text-sm font-semibold">{t("ov.title")}</span>
         </div>
         <p className="max-w-2xl text-sm leading-6 text-body">{t("ov.lead")}</p>
-        <p className="text-[11px] leading-4 text-muted/70">{market === "CN" ? t("ov.proxy") : t("ov.ushkNote")}</p>
-        <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
-          {MARKETS.map((m) => (
-            <button
-              key={m}
-              onClick={() => setMarket(m)}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                market === m ? "bg-accent text-white" : "text-muted hover:text-heading"
-              )}
-            >
-              {m}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
+            {MARKETS.map((m) => (
+              <button
+                key={m}
+                onClick={() => setMarket(m)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                  market === m ? "bg-accent text-white" : "text-muted hover:text-heading"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {MODULES.map((mo) => {
+              const Icon = mo.icon;
+              const active = mod === mo.id;
+              return (
+                <button
+                  key={mo.id}
+                  onClick={() => setMod(mo.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                    active
+                      ? "border-accent bg-accent text-white"
+                      : "border-border bg-surface text-muted hover:text-heading"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {t(mo.key as never)}
+                </button>
+              );
+            })}
+          </div>
         </div>
+        {mod === "market" && (
+          <p className="text-[11px] leading-4 text-muted/70">{market === "CN" ? t("ov.proxy") : t("ov.ushkNote")}</p>
+        )}
       </header>
 
       {loading ? (
@@ -77,7 +109,7 @@ export default function OverviewPage() {
       ) : data ? (
         <div className="mt-6 space-y-8">
           {/* Index strip (CN) */}
-          {data.indices.length > 0 && (
+          {mod === "market" && data.indices.length > 0 && (
             <section>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {data.indices.map((ix) => (
@@ -96,7 +128,7 @@ export default function OverviewPage() {
           )}
 
           {/* Breadth (CN): advancers / decliners / limit-up. CN convention: up=red. */}
-          {data.breadth && (data.breadth.advancers != null || data.breadth.limit_up != null) && (
+          {mod === "market" && data.breadth && (data.breadth.advancers != null || data.breadth.limit_up != null) && (
             <section>
               <div className="flex flex-wrap gap-2">
                 {data.breadth.advancers != null && (
@@ -128,7 +160,7 @@ export default function OverviewPage() {
           )}
 
           {/* Hot industries (CN only) */}
-          {data.hot_industries.length > 0 && (
+          {mod === "market" && data.hot_industries.length > 0 && (
             <section>
               <h2 className="mb-3 text-sm font-semibold text-heading">{t("ov.industries")}</h2>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -151,6 +183,7 @@ export default function OverviewPage() {
           )}
 
           {/* Most-active companies */}
+          {mod === "market" && (
           <section>
             <h2 className="mb-3 text-sm font-semibold text-heading">{market === "CN" ? t("ov.companies") : t("ov.companiesMajor")}</h2>
             <div className="overflow-hidden rounded-xl border border-border bg-surface">
@@ -173,9 +206,10 @@ export default function OverviewPage() {
               </div>
             </div>
           </section>
+          )}
 
-          {/* Market news feed (all markets) */}
-          {data.news.length > 0 && (
+          {/* Market news feed (news module) */}
+          {mod === "news" && data.news.length > 0 && (
             <section>
               <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-heading">
                 <Newspaper className="h-4 w-4 text-accent" />
@@ -208,7 +242,7 @@ export default function OverviewPage() {
           )}
 
           {/* On-site top */}
-          {data.site_top.length > 0 && (
+          {mod === "market" && data.site_top.length > 0 && (
             <section>
               <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-heading">
                 <TrendingUp className="h-4 w-4 text-accent" />
@@ -228,6 +262,10 @@ export default function OverviewPage() {
                 ))}
               </div>
             </section>
+          )}
+
+          {mod === "news" && data.news.length === 0 && (
+            <p className="text-sm text-muted">{t("ov.empty")}</p>
           )}
         </div>
       ) : null}
