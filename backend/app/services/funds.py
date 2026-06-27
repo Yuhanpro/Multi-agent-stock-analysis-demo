@@ -7,6 +7,7 @@ holdings. Cached a few hours since NAV/holdings change slowly.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -19,14 +20,14 @@ log = logging.getLogger(__name__)
 _CACHE: dict[str, tuple[float, "Fund"]] = {}
 _TTL = 6 * 3600
 # Full fund list (code/name/type/pinyin), loaded once. Powers both the ETF
-# name backfill and fund search. Cached 24h.
+# name backfill and fund search. Building it pulls fund_name_em (~27k rows, ~8s),
+# so we cache 24h, preload at startup, and serve stale while refreshing.
 _TABLE_CACHE: tuple[float, list[dict], dict[str, tuple[str, str]]] | None = None
+_TABLE_TTL = 24 * 3600
+_TABLE_REFRESHING = False
 
 
-def _fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
-    global _TABLE_CACHE
-    if _TABLE_CACHE and time.time() - _TABLE_CACHE[0] < 24 * 3600:
-        return _TABLE_CACHE[1], _TABLE_CACHE[2]
+def _build_fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
     import akshare as ak
 
     rows: list[dict] = []
@@ -40,8 +41,44 @@ def _fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
             cmap[code] = (name, typ)
     except Exception as e:
         log.warning("fund_name_em failed: %s", e)
+    return rows, cmap
+
+
+def _fund_table() -> tuple[list[dict], dict[str, tuple[str, str]]]:
+    global _TABLE_CACHE, _TABLE_REFRESHING
+    if _TABLE_CACHE:
+        if time.time() - _TABLE_CACHE[0] < _TABLE_TTL:
+            return _TABLE_CACHE[1], _TABLE_CACHE[2]
+        # Expired — serve the stale copy immediately, refresh once in the
+        # background so no user request ever eats the ~8s rebuild.
+        if not _TABLE_REFRESHING:
+            _TABLE_REFRESHING = True
+
+            def _bg():
+                global _TABLE_CACHE, _TABLE_REFRESHING
+                try:
+                    rows, cmap = _build_fund_table()
+                    if rows:
+                        _TABLE_CACHE = (time.time(), rows, cmap)
+                finally:
+                    _TABLE_REFRESHING = False
+
+            threading.Thread(target=_bg, daemon=True).start()
+        return _TABLE_CACHE[1], _TABLE_CACHE[2]
+    # Cold (first ever / not yet preloaded): build synchronously.
+    rows, cmap = _build_fund_table()
     _TABLE_CACHE = (time.time(), rows, cmap)
     return rows, cmap
+
+
+def warm_caches() -> None:
+    """Preload the fund corpus at startup so the first search isn't a cold 8s build."""
+    try:
+        _fund_table()
+        _hk_rank()
+        log.info("fund caches warmed: %d funds + %d HK", len(_TABLE_CACHE[1]) if _TABLE_CACHE else 0, len(_HK_CACHE[1]) if _HK_CACHE else 0)
+    except Exception as e:
+        log.warning("fund cache warm failed: %s", e)
 
 
 _HK_CACHE: tuple[float, list[dict], dict[str, dict]] | None = None

@@ -46,6 +46,15 @@ app.add_middleware(
 
 db.init_db()
 
+# Preload the fund-search corpus in the background. Building it pulls ~27k rows
+# (~8s) the first time; warming at boot means no user search ever hits that cold
+# stall, even right after a deploy restart.
+import threading as _threading  # noqa: E402
+
+from app.services.funds import warm_caches as _warm_funds  # noqa: E402
+
+_threading.Thread(target=_warm_funds, daemon=True).start()
+
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(snapshot.router, prefix="/api", tags=["snapshot"])
 app.include_router(financials.router, prefix="/api", tags=["financials"])
