@@ -103,6 +103,27 @@ CREATE TABLE IF NOT EXISTS alerts (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_alerts_enabled ON alerts(enabled);
+
+CREATE TABLE IF NOT EXISTS paper_account (
+    user_id    INTEGER PRIMARY KEY,
+    cash       REAL NOT NULL,
+    start_cash REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS paper_trades (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ticker  TEXT NOT NULL,
+    market  TEXT NOT NULL,
+    side    TEXT NOT NULL,          -- 'buy' / 'sell'
+    shares  REAL NOT NULL,
+    price   REAL NOT NULL,
+    ts      TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_trades_user ON paper_trades(user_id, ts);
 """
 
 

@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth";
 import { LoginPrompt } from "@/components/auth-widget";
 import { StockCompare } from "@/components/stock-compare";
 import { PushSettings, AlertEditor } from "@/components/alert-settings";
+import { PaperPortfolio } from "@/components/paper-portfolio";
 
 const MODE_OPTIONS: AnalysisMode[] = ["snapshot", "quick", "serenity", "debate"];
 
@@ -41,7 +42,7 @@ export default function WatchlistPage() {
   });
   const [suggestions, setSuggestions] = useState<SymbolSuggestion[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
-  const [view, setView] = useState<"list" | "compare">("list");
+  const [view, setView] = useState<"list" | "compare" | "paper">("list");
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
   useEffect(() => {
@@ -146,7 +147,7 @@ export default function WatchlistPage() {
           </div>
           <div className="flex items-center gap-3">
             <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
-              {(["list", "compare"] as const).map((v) => (
+              {(["list", "compare", "paper"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -155,7 +156,7 @@ export default function WatchlistPage() {
                     view === v ? "bg-accent text-white" : "text-muted hover:text-heading"
                   )}
                 >
-                  {t(v === "list" ? "watch.view.list" : "watch.view.compare")}
+                  {t(`watch.view.${v}` as never)}
                 </button>
               ))}
             </div>
@@ -172,6 +173,8 @@ export default function WatchlistPage() {
         <section className="mt-6">
           <StockCompare items={compareItems} />
         </section>
+      ) : view === "paper" ? (
+        <PaperPortfolio />
       ) : (
       <>
       <PushSettings />

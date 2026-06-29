@@ -501,6 +501,49 @@ export async function testPushChannel(): Promise<{ ok: boolean }> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/account/push/test`, { method: "POST", headers: authHeaders() }));
 }
 
+// ---------- paper trading ---------------------------------------------------
+
+export interface PaperPosition {
+  ticker: string;
+  market: Market;
+  shares: number;
+  avg_cost: number;
+  price: number | null;
+  market_value: number | null;
+  pnl: number | null;
+  pnl_pct: number | null;
+}
+
+export interface Portfolio {
+  cash: number;
+  start_cash: number;
+  positions: PaperPosition[];
+  market_value: number;
+  total: number;
+  total_pnl: number;
+  total_pnl_pct: number;
+}
+
+export async function fetchPaper(): Promise<Portfolio> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/paper`, { headers: authHeaders() }));
+}
+
+export async function placePaperOrder(body: {
+  ticker: string; market: Market; side: "buy" | "sell"; shares: number;
+}): Promise<Portfolio> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/paper/order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    })
+  );
+}
+
+export async function resetPaper(): Promise<Portfolio> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/paper/reset`, { method: "POST", headers: authHeaders() }));
+}
+
 // ---------- funds -----------------------------------------------------------
 
 export interface NavPoint { date: string; nav: number | null; growth: number | null; }
