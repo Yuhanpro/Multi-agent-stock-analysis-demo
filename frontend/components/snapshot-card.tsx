@@ -6,6 +6,7 @@ import type { Snapshot } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { companyShortName } from "@/lib/company-names";
 import { cn, fmtNumber, fmtPct, fmtPrice } from "@/lib/format";
+import { PaperTrade } from "@/components/paper-trade";
 
 interface Props { snapshot: Snapshot }
 
@@ -92,6 +93,10 @@ export function SnapshotCard({ snapshot }: Props) {
           <div className="text-2xl font-semibold tabular-nums text-heading">{fmtPrice(snapshot.price, f.currency)}</div>
           <div className={cn("text-sm tabular-nums", positive ? "text-bull" : "text-bear")}>{fmtPct(snapshot.change_pct)}</div>
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <PaperTrade ticker={snapshot.ticker} market={snapshot.market} />
       </div>
 
       <div className="h-48 -mx-2">

@@ -25,6 +25,23 @@ export function StockInput({
   const [suggestions, setSuggestions] = useState<SymbolSuggestion[]>([]);
   const [open, setOpen] = useState(false);
 
+  // Auto-detect the market from the ticker shape so users don't pick it manually:
+  // 6 digits → A-share, ≤5 digits → HK, anything with a letter → US.
+  function detectMarket(raw: string): Market | null {
+    const s = raw.trim().toUpperCase();
+    if (!s) return null;
+    if (/^\d{6}$/.test(s)) return "CN";
+    if (/^\d{1,5}$/.test(s)) return "HK";
+    if (/[A-Z]/.test(s)) return "US";
+    return null;
+  }
+
+  function onTickerChange(v: string) {
+    setTicker(v);
+    const d = detectMarket(v);
+    if (d) setMarket(d);
+  }
+
   useEffect(() => {
     setTicker(defaultTicker);
     setMarket(defaultMarket);
@@ -93,7 +110,7 @@ export function StockInput({
         <input
           value={ticker}
           onFocus={() => setOpen(suggestions.length > 0)}
-          onChange={(e) => setTicker(e.target.value)}
+          onChange={(e) => onTickerChange(e.target.value)}
           placeholder={market === "US" ? t("input.placeholder.us") : market === "CN" ? t("input.placeholder.cn") : t("input.placeholder.hk")}
           spellCheck={false}
           className={cn(
