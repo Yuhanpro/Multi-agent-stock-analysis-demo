@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, Clock, Flame, MessageCircleQuestion, MessagesSquare, PieChart, Sparkles, Star, Stethoscope, X } from "lucide-react";
+import { BarChart2, Clock, Flame, MessageCircleQuestion, MessagesSquare, PieChart, Sparkles, Star, Stethoscope, Wallet, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /** First-visit onboarding modal. Content is inline-bilingual to keep i18n lean. */
@@ -38,6 +38,11 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
       icon: Star,
       zh: "自选 + 对比 + 历史(需登录):收藏关注的票,「对比」视图并排比 PE/ROE/股息等;登录后跑的分析自动存「历史」,可分享链接、导出长图。",
       en: "Watchlist + Compare + History (sign-in): save tickers and compare PE/ROE/dividend side by side; signed-in analyses are kept in History — shareable & exportable.",
+    },
+    {
+      icon: Wallet,
+      zh: "模拟盘(新,需登录):自选页「持仓」Tab,¥100 万虚拟资金,按实时价模拟买卖股票、跟踪持仓盈亏——验证 AI 的判断或自己的想法,不花真钱。",
+      en: "Paper trading (new, sign-in): the Portfolio tab on Watchlist — ¥1,000,000 virtual cash, buy/sell at live prices and track P&L. Test the AI's calls or your own ideas, no real money.",
     },
     {
       icon: MessagesSquare,
