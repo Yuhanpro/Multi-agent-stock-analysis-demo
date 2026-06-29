@@ -202,6 +202,13 @@ export async function fetchMe(): Promise<User> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/auth/me`, { headers: authHeaders() }));
 }
 
+// Merge the browser's anonymous watchlist/paper data into the account on sign-in.
+export async function migrateAnon(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/auth/migrate-anon`, { method: "POST", headers: authHeaders() });
+  } catch {}
+}
+
 export async function fetchReports(): Promise<ReportMeta[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/reports`, { headers: authHeaders() }));
 }

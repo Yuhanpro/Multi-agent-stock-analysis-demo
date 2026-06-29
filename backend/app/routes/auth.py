@@ -1,7 +1,7 @@
 """Auth routes — register / login / me."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.services import auth, invites
@@ -47,3 +47,12 @@ def login(body: Credentials) -> AuthResponse:
 @router.get("/auth/me", response_model=User)
 def me(user: User = Depends(auth.get_current_user)) -> User:
     return user
+
+
+@router.post("/auth/migrate-anon")
+def migrate_anon(request: Request, user: User = Depends(auth.get_current_user)) -> dict:
+    """Merge the browser's anonymous watchlist/paper data into this account."""
+    anon = (request.headers.get("x-anon-id") or "").strip()
+    if anon:
+        auth.migrate_anon_to_user(anon, user.id)
+    return {"ok": True}

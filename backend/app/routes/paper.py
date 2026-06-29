@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services import paper
-from app.services.auth import User, get_current_user
+from app.services.auth import User, get_owner_user as get_current_user
 
 router = APIRouter()
 

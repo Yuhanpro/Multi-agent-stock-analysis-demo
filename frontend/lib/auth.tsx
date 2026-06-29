@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { fetchMe, loginApi, registerApi, type User } from "./api";
+import { fetchMe, loginApi, migrateAnon, registerApi, type User } from "./api";
 import { clearToken, getToken, setToken } from "./token";
 
 interface AuthCtx {
@@ -41,12 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password);
     setToken(res.token);
+    await migrateAnon();
     setUser(res.user);
   }, []);
 
   const register = useCallback(async (email: string, password: string, inviteCode?: string) => {
     const res = await registerApi(email, password, inviteCode);
     setToken(res.token);
+    await migrateAnon();
     setUser(res.user);
   }, []);
 

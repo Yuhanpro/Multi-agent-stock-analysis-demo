@@ -105,7 +105,7 @@ def get_stats() -> Stats:
         today_views=_scalar("SELECT COUNT(*) FROM events WHERE substr(created_at,1,10)=?", (today,)),
         total_visitors=_scalar("SELECT COUNT(DISTINCT anon_id) FROM events"),
         today_visitors=_scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10)=?", (today,)),
-        total_users=_scalar("SELECT COUNT(*) FROM users"),
+        total_users=_scalar("SELECT COUNT(*) FROM users WHERE email NOT LIKE 'anon:%'"),
     )
     s.top_paths = [
         PathHit(path=r["path"], count=r["c"])
@@ -120,7 +120,7 @@ def get_stats() -> Stats:
     rp = {r["d"]: (r["c"], r["cost"]) for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c, COALESCE(SUM(cost_usd),0) AS cost FROM reports GROUP BY d")}
     su = {r["d"]: r["c"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users GROUP BY d")}
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d")}
     s.daily = [
         DailyPoint(
             date=d,
@@ -168,7 +168,7 @@ def get_stats() -> Stats:
     s.returning_today = max(0, s.today_visitors - s.new_today)
     s.signups_daily = [
         SignupPoint(date=r["d"], count=r["c"])
-        for r in db.query_all("SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users GROUP BY d ORDER BY d DESC LIMIT 14")
+        for r in db.query_all("SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d ORDER BY d DESC LIMIT 14")
     ]
     hours = {int(r["h"]): r["c"] for r in db.query_all(
         "SELECT (CAST(substr(created_at,12,2) AS INTEGER)+8)%24 AS h, COUNT(*) AS c FROM events GROUP BY h"
@@ -180,7 +180,7 @@ def get_stats() -> Stats:
             "SELECT u.email, "
             "(SELECT COUNT(*) FROM reports r WHERE r.user_id = u.id) AS runs, "
             "(SELECT MAX(created_at) FROM events e WHERE e.user_id = u.id) AS last "
-            "FROM users u ORDER BY runs DESC, u.id LIMIT 10"
+            "FROM users u WHERE u.email NOT LIKE 'anon:%' ORDER BY runs DESC, u.id LIMIT 10"
         )
     ]
     return s

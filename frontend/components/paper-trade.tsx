@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { Loader2, Wallet, X } from "lucide-react";
 import { placePaperOrder, type Market } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 
 /** Compact "paper trade this stock" control for the snapshot card. */
 export function PaperTrade({ ticker, market }: { ticker: string; market: Market }) {
   const { t } = useT();
-  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [shares, setShares] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,32 +45,25 @@ export function PaperTrade({ ticker, market }: { ticker: string; market: Market 
 
   return (
     <div className="rounded-lg border border-border bg-bg/30 p-2.5">
-      {!user ? (
-        <div className="flex items-center gap-2 text-xs text-muted">
-          {t("ptrade.login")}
-          <button onClick={() => setOpen(false)} className="text-muted/60 hover:text-heading"><X className="h-3.5 w-3.5" /></button>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted">{t("ptrade.open")}</span>
-          <input
-            value={shares}
-            onChange={(e) => setShares(e.target.value)}
-            inputMode="numeric"
-            placeholder={t("paper.shares")}
-            className="w-20 rounded-md border border-border bg-surface px-2 py-1 text-xs tabular-nums outline-none focus:border-accent/70"
-          />
-          <button onClick={() => order("buy")} disabled={busy || !shares}
-            className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent/85 disabled:opacity-40">
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("ptrade.buy")}
-          </button>
-          <button onClick={() => order("sell")} disabled={busy || !shares}
-            className="rounded-md border border-border px-3 py-1 text-xs text-muted hover:border-bear/40 hover:text-bear disabled:opacity-40">
-            {t("ptrade.sell")}
-          </button>
-          <button onClick={() => setOpen(false)} className="text-muted/60 hover:text-heading"><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted">{t("ptrade.open")}</span>
+        <input
+          value={shares}
+          onChange={(e) => setShares(e.target.value)}
+          inputMode="numeric"
+          placeholder={t("paper.shares")}
+          className="w-20 rounded-md border border-border bg-surface px-2 py-1 text-xs tabular-nums outline-none focus:border-accent/70"
+        />
+        <button onClick={() => order("buy")} disabled={busy || !shares}
+          className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent/85 disabled:opacity-40">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("ptrade.buy")}
+        </button>
+        <button onClick={() => order("sell")} disabled={busy || !shares}
+          className="rounded-md border border-border px-3 py-1 text-xs text-muted hover:border-bear/40 hover:text-bear disabled:opacity-40">
+          {t("ptrade.sell")}
+        </button>
+        <button onClick={() => setOpen(false)} className="text-muted/60 hover:text-heading"><X className="h-3.5 w-3.5" /></button>
+      </div>
       {msg && <div className={cn("mt-1.5 text-[11px]", msg.ok ? "text-bull" : "text-bear")}>{msg.text}</div>}
     </div>
   );

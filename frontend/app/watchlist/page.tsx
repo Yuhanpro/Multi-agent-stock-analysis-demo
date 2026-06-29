@@ -18,7 +18,6 @@ import { companyShortName } from "@/lib/company-names";
 import { cn } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { LoginPrompt } from "@/components/auth-widget";
 import { StockCompare } from "@/components/stock-compare";
 import { PaperPortfolio } from "@/components/paper-portfolio";
 
@@ -42,8 +41,9 @@ export default function WatchlistPage() {
   const [view, setView] = useState<"list" | "compare" | "paper">("list");
 
   useEffect(() => {
-    if (user) refresh();
-    else if (!authLoading) setLoading(false);
+    // Load once auth is resolved — works for both signed-in users and anonymous
+    // browsers (the watchlist API is keyed to a shadow user via X-Anon-Id).
+    if (!authLoading) refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
@@ -152,9 +152,13 @@ export default function WatchlistPage() {
         </div>
       </header>
 
-      {!authLoading && !user ? (
-        <LoginPrompt />
-      ) : view === "compare" ? (
+      {!authLoading && !user && (
+        <div className="mt-5 rounded-lg border border-accent/30 bg-accent/5 px-4 py-2.5 text-xs text-muted">
+          {t("watch.anonHint")}
+        </div>
+      )}
+
+      {view === "compare" ? (
         <section className="mt-6">
           <StockCompare items={compareItems} />
         </section>

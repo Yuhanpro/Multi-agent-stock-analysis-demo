@@ -100,7 +100,8 @@ def _row_to_user(row) -> User:
 
 
 def user_count() -> int:
-    row = db.query_one("SELECT COUNT(*) AS c FROM users")
+    # Exclude anonymous shadow accounts (anon:<browser-id>) from real-user counts.
+    row = db.query_one("SELECT COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%'")
     return int(row["c"]) if row else 0
 
 
@@ -173,3 +174,54 @@ def get_current_admin(request: Request) -> User:
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return user
+
+
+# ---------- anonymous "owner" identity --------------------------------------
+# Personal features (watchlist, paper trading) work without an account by keying
+# off the browser's stable anon-id (sent as X-Anon-Id). We back this with a
+# lazily-created "shadow" user row (email = "anon:<id>") so all per-user code
+# works unchanged; shadows are excluded from real-user counts and can be merged
+# into a real account on sign-in.
+
+_ANON_RE = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
+
+
+def _get_or_create_shadow(anon: str) -> User:
+    email = f"anon:{anon}"
+    row = db.query_one("SELECT * FROM users WHERE email = ?", (email,))
+    if row is None:
+        db.execute(
+            "INSERT INTO users (email, password_hash, created_at, is_admin) VALUES (?, ?, ?, 0)",
+            (email, "", datetime.now(timezone.utc).isoformat()),
+        )
+        row = db.query_one("SELECT * FROM users WHERE email = ?", (email,))
+    return _row_to_user(row)
+
+
+def get_owner_user(request: Request) -> User:
+    """Logged-in user, or a shadow user for the browser's X-Anon-Id."""
+    user = user_from_request(request)
+    if user is not None:
+        return user
+    anon = (request.headers.get("x-anon-id") or "").strip()
+    if not _ANON_RE.match(anon):
+        raise HTTPException(status_code=401, detail="需要登录")
+    return _get_or_create_shadow(anon)
+
+
+def migrate_anon_to_user(anon: str, user_id: int) -> None:
+    """Best-effort merge of a browser's anonymous data into a real account on
+    sign-in: move non-conflicting watchlist items; adopt the paper account only
+    if the user has none yet; then drop the shadow (cascades leftovers)."""
+    anon = (anon or "").strip()
+    if not _ANON_RE.match(anon):
+        return
+    shadow = db.query_one("SELECT id FROM users WHERE email = ?", (f"anon:{anon}",))
+    if shadow is None or shadow["id"] == user_id:
+        return
+    sid = shadow["id"]
+    db.execute("UPDATE OR IGNORE watchlist SET user_id = ? WHERE user_id = ?", (user_id, sid))
+    if db.query_one("SELECT user_id FROM paper_account WHERE user_id = ?", (user_id,)) is None:
+        db.execute("UPDATE paper_account SET user_id = ? WHERE user_id = ?", (user_id, sid))
+        db.execute("UPDATE paper_trades SET user_id = ? WHERE user_id = ?", (user_id, sid))
+    db.execute("DELETE FROM users WHERE id = ?", (sid,))

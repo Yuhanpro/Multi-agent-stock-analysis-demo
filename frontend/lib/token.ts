@@ -27,7 +27,23 @@ export function clearToken(): void {
   } catch {}
 }
 
+// Stable per-browser anonymous id (same key as analytics). Lets personal
+// features (watchlist, paper trading) work without an account, keyed server-side
+// to a shadow user; the Bearer token (when present) takes precedence.
+function anonId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem("stock-web:anon") || "";
+  } catch {
+    return "";
+  }
+}
+
 export function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
   const t = getToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  if (t) h.Authorization = `Bearer ${t}`;
+  const a = anonId();
+  if (a) h["X-Anon-Id"] = a;
+  return h;
 }
