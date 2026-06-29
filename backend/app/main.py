@@ -57,10 +57,10 @@ from app.services.funds import warm_caches as _warm_funds  # noqa: E402
 
 _threading.Thread(target=_warm_funds, daemon=True).start()
 
-# Background price-alert engine (polls A-share spot during CN trading hours).
-from app.services import alert_scheduler as _alert_scheduler  # noqa: E402
-
-_alert_scheduler.start()
+# Price-alert engine is paused for now (WeChat-binding UX was too heavy). The
+# code/tables stay in place; re-enable by uncommenting + restoring the watchlist UI.
+# from app.services import alert_scheduler as _alert_scheduler  # noqa: E402
+# _alert_scheduler.start()
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(snapshot.router, prefix="/api", tags=["snapshot"])

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, Bell, Clock, Flame, MessageCircleQuestion, MessagesSquare, PieChart, Sparkles, Star, Stethoscope, X } from "lucide-react";
+import { BarChart2, Clock, Flame, MessageCircleQuestion, MessagesSquare, PieChart, Sparkles, Star, Stethoscope, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /** First-visit onboarding modal. Content is inline-bilingual to keep i18n lean. */
@@ -28,11 +28,6 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
       icon: Stethoscope,
       zh: "持仓诊断:填你的买入成本,AI 给 加仓/持有/减仓/清仓 建议(基于前瞻价值,不劝你死等回本)。",
       en: "Position Diagnosis: enter your cost basis → an add/hold/trim/sell call based on forward value (not breaking even).",
-    },
-    {
-      icon: Bell,
-      zh: "价格提醒(新,需登录):在「自选」里给股票设涨/跌幅或到价条件,绑定微信(Server酱/PushPlus)后,A股交易时段触发即推送到你微信。",
-      en: "Price alerts (new, sign-in): set up/down % or target-price rules on watchlist stocks; bind WeChat (Server酱/PushPlus) and get pushed when an A-share rule triggers in trading hours.",
     },
     {
       icon: Flame,
