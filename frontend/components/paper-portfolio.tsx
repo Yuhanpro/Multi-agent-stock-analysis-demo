@@ -134,10 +134,42 @@ export function PaperPortfolio() {
       </div>
 
       {/* positions */}
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-        {pf.positions.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted">{t("paper.empty")}</div>
-        ) : (
+      {pf.positions.length === 0 ? (
+        <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted">{t("paper.empty")}</div>
+      ) : (
+      <>
+      {/* mobile: cards */}
+      <div className="space-y-2 md:hidden">
+        {pf.positions.map((p) => {
+          const short = companyShortName(p.ticker, p.market);
+          return (
+            <div key={`${p.market}:${p.ticker}`} className="rounded-xl border border-border bg-surface p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="font-mono font-semibold text-heading">{p.ticker}</span>
+                  {short && <span className="ml-1.5 text-xs text-muted">{short}</span>}
+                </div>
+                <div className={cn("shrink-0 text-right text-sm font-semibold tabular-nums", tone(p.pnl, p.market))}>
+                  {p.pnl != null ? `${p.pnl >= 0 ? "+" : ""}${money(p.pnl)}` : "—"}
+                  {p.pnl_pct != null && <span className="ml-1 text-xs">({fmtPct(p.pnl_pct)})</span>}
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted tabular-nums">
+                <span>{t("paper.shares")} {p.shares}</span>
+                <span>{t("paper.avgCost")} {p.avg_cost.toFixed(2)}</span>
+                <span>{t("paper.price")} {p.price != null ? p.price.toFixed(2) : "—"}</span>
+                <span>{t("paper.mv")} ¥{money(p.market_value)}</span>
+              </div>
+              <button onClick={() => order("sell", p.ticker, p.market, p.shares)} disabled={busy}
+                className="mt-2.5 w-full rounded-lg border border-border py-1.5 text-xs text-muted hover:border-bear/40 hover:text-bear disabled:opacity-40">
+                {t("paper.sellAll")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {/* desktop: table */}
+      <div className="hidden overflow-x-auto rounded-xl border border-border bg-surface md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted">
@@ -181,8 +213,9 @@ export function PaperPortfolio() {
               })}
             </tbody>
           </table>
-        )}
       </div>
+      </>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-xs text-muted">
