@@ -68,31 +68,36 @@ def _domestic() -> GoldSeries:
     import akshare as ak
 
     s = GoldSeries(name="沪金 Au99.99", unit="元/克")
-    prev = None
+    last_close = prev_daily = None
     try:
         df = ak.spot_hist_sge(symbol="Au99.99")
         if df is not None and not df.empty:
             rows = [GoldPoint(date=str(r["date"])[:10], close=_safe_float(r["close"])) for _, r in df.iterrows()]
             rows = [p for p in rows if p.close is not None]
             s.history = rows[-180:]
+            if rows:
+                last_close = rows[-1].close        # 最近日收盘(交易日内即"昨收")
+                s.price = last_close
             if len(rows) >= 2:
-                prev = rows[-2].close
-                s.price = rows[-1].close
+                prev_daily = rows[-2].close
     except Exception as e:
         log.warning("sge hist failed: %s", e)
-    # realtime overlay
+    # realtime overlay — the table is today's intraday ticks; take the LATEST one.
+    rt_price = None
     try:
         rt = ak.spot_quotations_sge(symbol="Au99.99")
         if rt is not None and not rt.empty:
             sub = rt[rt["品种"].astype(str) == "Au99.99"]
             if not sub.empty:
-                p = _safe_float(sub.iloc[0].get("现价"))
-                if p:
-                    s.price = p
+                rt_price = _safe_float(sub.iloc[-1].get("现价"))
+                if rt_price:
+                    s.price = rt_price
     except Exception as e:
         log.warning("sge realtime failed: %s", e)
-    if s.price is not None and prev:
-        s.change_pct = s.price / prev - 1
+    if rt_price and last_close:
+        s.change_pct = rt_price / last_close - 1          # 实时 vs 昨收
+    elif last_close and prev_daily:
+        s.change_pct = last_close / prev_daily - 1        # 无实时时用最新日涨跌
     return s
 
 
