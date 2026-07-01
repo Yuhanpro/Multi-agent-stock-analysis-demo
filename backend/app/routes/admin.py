@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.services import app_settings, events, invites
+from app.services import app_settings, db, events, invites
 from app.services import feedback as fb
 from app.services.auth import User, get_current_admin
 from app.services.rate_limit import _parse
@@ -39,6 +39,44 @@ def set_settings_admin(body: RateLimits, user: User = Depends(get_current_admin)
             raise HTTPException(status_code=400, detail=f"{k}: {e}") from e
     app_settings.set_many(values)
     return RateLimits(**app_settings.all_settings())
+
+
+class AdminUser(BaseModel):
+    id: int
+    email: str
+    created_at: str
+    is_admin: bool
+    unlimited: bool
+    analyses: int
+
+
+class SetUnlimited(BaseModel):
+    unlimited: bool
+
+
+@router.get("/admin/users", response_model=list[AdminUser])
+def list_users(user: User = Depends(get_current_admin)) -> list[AdminUser]:
+    rows = db.query_all(
+        "SELECT u.id, u.email, u.created_at, u.is_admin, u.unlimited, "
+        "(SELECT COUNT(*) FROM runs r WHERE r.user_id = u.id) AS analyses "
+        "FROM users u WHERE u.email NOT LIKE 'anon:%' ORDER BY u.created_at DESC"
+    )
+    return [AdminUser(id=r["id"], email=r["email"], created_at=r["created_at"],
+                      is_admin=bool(r["is_admin"]), unlimited=bool(r["unlimited"]),
+                      analyses=int(r["analyses"] or 0)) for r in rows]
+
+
+@router.post("/admin/users/{uid}/unlimited", response_model=AdminUser)
+def set_user_unlimited(uid: int, body: SetUnlimited, user: User = Depends(get_current_admin)) -> AdminUser:
+    if db.query_one("SELECT id FROM users WHERE id = ? AND email NOT LIKE 'anon:%'", (uid,)) is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    db.execute("UPDATE users SET unlimited = ? WHERE id = ?", (1 if body.unlimited else 0, uid))
+    r = db.query_one(
+        "SELECT u.id, u.email, u.created_at, u.is_admin, u.unlimited, "
+        "(SELECT COUNT(*) FROM runs r WHERE r.user_id = u.id) AS analyses FROM users u WHERE u.id = ?", (uid,)
+    )
+    return AdminUser(id=r["id"], email=r["email"], created_at=r["created_at"],
+                     is_admin=bool(r["is_admin"]), unlimited=bool(r["unlimited"]), analyses=int(r["analyses"] or 0))
 
 
 @router.get("/admin/invites", response_model=list[invites.InviteCode])

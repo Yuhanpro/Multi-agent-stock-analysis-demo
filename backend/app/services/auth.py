@@ -33,6 +33,7 @@ class User(BaseModel):
     email: str
     created_at: str
     is_admin: bool = False
+    unlimited: bool = False   # whitelist: bypasses all rate caps (incl. debate)
 
 
 # ---------- password hashing ------------------------------------------------
@@ -96,7 +97,9 @@ def verify_token(token: str) -> dict | None:
 
 def _row_to_user(row) -> User:
     is_admin = bool(row["is_admin"]) or (str(row["email"]).lower() in get_settings().admin_emails)
-    return User(id=row["id"], email=row["email"], created_at=row["created_at"], is_admin=is_admin)
+    unlimited = bool(row["unlimited"]) if "unlimited" in row.keys() else False
+    return User(id=row["id"], email=row["email"], created_at=row["created_at"],
+                is_admin=is_admin, unlimited=unlimited)
 
 
 def user_count() -> int:

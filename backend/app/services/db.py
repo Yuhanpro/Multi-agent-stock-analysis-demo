@@ -184,6 +184,8 @@ def init_db() -> None:
             _conn.execute("ALTER TABLE users ADD COLUMN push_provider TEXT")
         if "push_key" not in ucols:
             _conn.execute("ALTER TABLE users ADD COLUMN push_key TEXT")
+        if "unlimited" not in ucols:  # whitelist: no rate caps at all (incl. debate)
+            _conn.execute("ALTER TABLE users ADD COLUMN unlimited INTEGER NOT NULL DEFAULT 0")
         _conn.commit()
 
 

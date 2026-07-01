@@ -6,9 +6,9 @@ import {
 } from "recharts";
 import { Check, Copy, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
-  createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminSettings, fetchAdminStats, fetchInvites,
-  revokeInvite, updateAdminSettings,
-  type AdminStats, type Feedback, type InviteCode, type ModeCount, type RateLimits, type SessionPath,
+  createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminSettings, fetchAdminStats, fetchAdminUsers,
+  fetchInvites, revokeInvite, setUserUnlimited, updateAdminSettings,
+  type AdminStats, type AdminUser, type Feedback, type InviteCode, type ModeCount, type RateLimits, type SessionPath,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
@@ -414,11 +414,56 @@ function RateLimitSettings() {
   );
 }
 
+function UserWhitelist() {
+  const { t } = useT();
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  useEffect(() => { fetchAdminUsers().then(setUsers).catch(() => setUsers([])); }, []);
+  async function toggle(u: AdminUser) {
+    setBusy(u.id);
+    try {
+      const updated = await setUserUnlimited(u.id, !u.unlimited);
+      setUsers((xs) => (xs ?? []).map((x) => (x.id === u.id ? updated : x)));
+    } catch {}
+    setBusy(null);
+  }
+  if (!users) return null;
+  return (
+    <div className="mb-4 rounded-xl border border-border bg-surface p-4">
+      <div className="text-sm font-semibold text-heading">{t("admin.wl.title")}</div>
+      <p className="mb-3 mt-0.5 text-[11px] leading-4 text-muted">{t("admin.wl.hint")}</p>
+      {users.length === 0 ? (
+        <div className="text-xs text-muted">{t("admin.wl.empty")}</div>
+      ) : (
+        <div className="divide-y divide-border/60">
+          {users.map((u) => (
+            <div key={u.id} className="flex items-center gap-3 py-2 text-xs">
+              <span className="min-w-0 flex-1 truncate text-heading">{u.email}</span>
+              {u.is_admin && <span className="rounded-full border border-accent/40 px-1.5 py-0.5 text-[10px] text-accent">admin</span>}
+              <span className="text-muted">{u.analyses} {t("ov.analyzed")}</span>
+              <button
+                onClick={() => toggle(u)}
+                disabled={busy === u.id || u.is_admin}
+                title={u.is_admin ? t("admin.wl.adminNote") : ""}
+                className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50",
+                  u.unlimited || u.is_admin ? "bg-bull/15 text-bull" : "border border-border text-muted hover:border-accent/60 hover:text-accent")}
+              >
+                {u.unlimited || u.is_admin ? t("admin.wl.on") : t("admin.wl.off")}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Invites({ stats, invites, setInvites }: { stats: AdminStats | null; invites: InviteCode[]; setInvites: (f: (x: InviteCode[]) => InviteCode[]) => void }) {
   const { t } = useT();
   return (
     <div>
       <RateLimitSettings />
+      <UserWhitelist />
       {stats && (
         <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted">
           <span>{t("admin.invTotal")} <b className="text-heading">{stats.invites_total}</b></span>

@@ -466,6 +466,22 @@ export async function updateAdminSettings(body: RateLimits): Promise<RateLimits>
   );
 }
 
+export interface AdminUser { id: number; email: string; created_at: string; is_admin: boolean; unlimited: boolean; analyses: number; }
+
+export async function fetchAdminUsers(): Promise<AdminUser[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/users`, { headers: authHeaders() }));
+}
+
+export async function setUserUnlimited(uid: number, unlimited: boolean): Promise<AdminUser> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/admin/users/${uid}/unlimited`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ unlimited }),
+    })
+  );
+}
+
 export async function fetchAdminPaths(): Promise<SessionPath[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/paths`, { headers: authHeaders() }));
 }

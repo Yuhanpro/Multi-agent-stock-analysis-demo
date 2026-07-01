@@ -154,6 +154,10 @@ def enforce_scope(request: Request, scope: str, user) -> None:
     account by an admin-editable limit. Anonymous users use the anon caps."""
     from app.services import app_settings
 
+    # Whitelisted (and admin) accounts bypass every cap, including debate.
+    if user is not None and (getattr(user, "unlimited", False) or getattr(user, "is_admin", False)):
+        return
+
     if scope == "quick":
         if user is None:  # signed-in → no cap
             check_and_count(request, "quick", app_settings.get("limit_quick_anon"))
