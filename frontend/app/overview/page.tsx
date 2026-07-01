@@ -2,19 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Coins, Flame, LineChart, Loader2, Newspaper, TrendingUp } from "lucide-react";
+import { Flame, LineChart, Loader2, Newspaper, TrendingUp } from "lucide-react";
 import { fetchMarketOverview, type Market, type MarketOverview } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
-import { GoldPanel } from "@/components/gold-panel";
 
 const MARKETS: Market[] = ["CN", "US", "HK"];
 
-type OvModule = "market" | "news" | "gold";
+type OvModule = "market" | "news";
 const MODULES: { id: OvModule; icon: typeof Flame; key: string }[] = [
   { id: "market", icon: LineChart, key: "ov.mod.market" },
   { id: "news", icon: Newspaper, key: "ov.mod.news" },
-  { id: "gold", icon: Coins, key: "ov.mod.gold" },
 ];
 
 function yi(v: number | null): string {
@@ -34,7 +32,7 @@ function tone(v: number | null, market: Market): string {
 }
 
 export default function OverviewPage() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const [market, setMarket] = useState<Market>("CN");
   const [mod, setMod] = useState<OvModule>("market");
   const [data, setData] = useState<MarketOverview | null>(null);
@@ -58,9 +56,9 @@ export default function OverviewPage() {
           <Flame className="h-4 w-4" />
           <span className="text-sm font-semibold">{t("ov.title")}</span>
         </div>
-        <p className="max-w-2xl text-sm leading-6 text-body">{mod === "gold" ? t("gold.lead") : t(`ov.lead.${market}` as never)}</p>
+        <p className="max-w-2xl text-sm leading-6 text-body">{t(`ov.lead.${market}` as never)}</p>
         <div className="flex flex-wrap items-center gap-3">
-          <div className={cn("inline-flex gap-1 rounded-lg border border-border bg-surface p-1", mod === "gold" && "hidden")}>
+          <div className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1">
             {MARKETS.map((m) => (
               <button
                 key={m}
@@ -101,9 +99,7 @@ export default function OverviewPage() {
         )}
       </header>
 
-      {mod === "gold" ? (
-        <GoldPanel lang={lang} />
-      ) : loading ? (
+      {loading ? (
         <div className="mt-6 flex items-center gap-2 text-sm text-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t("ov.loading")}
