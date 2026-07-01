@@ -594,15 +594,46 @@ def _format_gold_for_prompt(gold) -> str:
     return "\n".join(parts)
 
 
-async def stream_gold_review(*, gold, model: str | None = None, language: str = "zh") -> AsyncIterator[tuple[str, dict]]:
-    """AI daily gold recap (reuses the DeepSeek streaming + cost model)."""
+def _period_window(series, n: int):
+    pts = [p for p in getattr(series, "history", []) if p.close is not None][-n:]
+    if len(pts) < 2:
+        return None
+    chg = pts[-1].close / pts[0].close - 1
+    hi = max((p.high if p.high is not None else p.close) for p in pts)
+    lo = min((p.low if p.low is not None else p.close) for p in pts)
+    return chg, hi, lo, pts[0].date, pts[-1].date
+
+
+async def stream_gold_review(*, gold, period: str = "day", model: str | None = None,
+                             language: str = "zh") -> AsyncIterator[tuple[str, dict]]:
+    """AI gold recap over a day / week / month window."""
     settings = get_settings()
     if not settings.deepseek_api_key:
         yield "error", {"message": "DEEPSEEK_API_KEY not configured on server"}
         return
     model = model or settings.quick_think_llm
 
-    user_text = _format_gold_for_prompt(gold) + "\n\n## 任务\n\n请做今日黄金复盘。"
+    period = period if period in ("day", "week", "month") else "day"
+    label = {"day": "今日", "week": "本周", "month": "本月"}[period]
+    nextlabel = {"day": "后市", "week": "下周", "month": "下月"}[period]
+    window = {"day": 2, "week": 6, "month": 23}[period]
+
+    user_text = _format_gold_for_prompt(gold)
+    for s, tag in ((gold.domestic, "国内金"), (gold.intl, "国际金")):
+        w = _period_window(s, window)
+        if w:
+            chg, hi, lo, d0, d1 = w
+            user_text += f"\n- {tag}{label}区间({d0}~{d1}):{chg*100:+.2f}% · 高 {hi} · 低 {lo}"
+    user_text += (
+        f"\n\n## 任务\n\n请做**{label}黄金复盘**:回顾{label}国内金与国际金的走势与幅度、"
+        f"结合内外价差/ETF持仓/技术面状态,给出{nextlabel}值得关注的价位与方向(作为关注点,非预测),最后一句小结。"
+    )
+    if period == "day":
+        user_text += "\n(侧重当日/近日盘面。)"
+    elif period == "week":
+        user_text += "\n(侧重整周脉络与关键转折,不要逐日流水账。)"
+    else:
+        user_text += "\n(侧重月度趋势与大格局,少谈短期噪音。)"
     if not (language or "zh").lower().startswith("zh"):
         user_text += "\n**Write the review in English.**"
 

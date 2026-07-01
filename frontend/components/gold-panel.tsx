@@ -22,6 +22,7 @@ export function GoldPanel({ lang }: { lang: Lang }) {
   const [which, setWhich] = useState<"domestic" | "intl">("domestic");
   const [tf, setTf] = useState<TF>("day");
   const [reviewOn, setReviewOn] = useState(0);
+  const [reviewPeriod, setReviewPeriod] = useState<"day" | "week" | "month">("day");
 
   useEffect(() => {
     fetchGold().then(setData).catch((e) => setError(e instanceof Error ? e.message : String(e))).finally(() => setLoading(false));
@@ -129,16 +130,23 @@ export function GoldPanel({ lang }: { lang: Lang }) {
       </div>
 
       <div>
-        <button
-          onClick={() => setReviewOn(Date.now())}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/85"
-        >
-          <Sparkles className="h-4 w-4" /> {t("gold.review")}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-heading"><Sparkles className="h-4 w-4 text-accent" />{t("gold.review")}</span>
+          {(["day", "week", "month"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => { setReviewPeriod(p); setReviewOn(Date.now()); }}
+              className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                reviewOn > 0 && reviewPeriod === p ? "bg-accent text-white" : "border border-border text-muted hover:border-accent/60 hover:text-accent")}
+            >
+              {t(`gold.review.${p}` as never)}
+            </button>
+          ))}
+        </div>
         <p className="mt-1.5 text-[11px] text-muted/60">{t("gold.reviewNote")}</p>
       </div>
 
-      {reviewOn > 0 && <GoldReview nonce={reviewOn} language={lang} />}
+      {reviewOn > 0 && <GoldReview nonce={reviewOn} period={reviewPeriod} language={lang} />}
     </div>
   );
 }
@@ -166,7 +174,7 @@ function GoldCard({ s, active, onClick }: { s: GoldSeries; active: boolean; onCl
   );
 }
 
-function GoldReview({ nonce, language }: { nonce: number; language: Lang }) {
+function GoldReview({ nonce, period, language }: { nonce: number; period: "day" | "week" | "month"; language: Lang }) {
   const { t } = useT();
   const [text, setText] = useState("");
   const [done, setDone] = useState(false);
@@ -175,7 +183,7 @@ function GoldReview({ nonce, language }: { nonce: number; language: Lang }) {
 
   useEffect(() => {
     setText(""); setDone(false); setError(null);
-    const ctl = streamSSE("/api/gold-review", { language }, {
+    const ctl = streamSSE("/api/gold-review", { language, period }, {
       onEvent: (ev, d) => {
         if (ev === "token") setText((x) => x + (d?.text ?? ""));
         else if (ev === "done") setDone(true);
@@ -185,14 +193,14 @@ function GoldReview({ nonce, language }: { nonce: number; language: Lang }) {
     });
     ref.current = ctl;
     return () => ctl.abort();
-  }, [nonce, language]);
+  }, [nonce, period, language]);
 
   return (
     <>
       <div className="rounded-xl border border-border bg-surface p-4">
         <div className="mb-2 flex items-center gap-2 text-sm font-medium">
           {done ? <CheckCircle2 className="h-4 w-4 text-bull" /> : error ? null : <Loader2 className="h-4 w-4 animate-spin text-accent" />}
-          {t("gold.review")}
+          {t(`gold.review.${period}` as never)}
         </div>
         {error ? (
           <div className="text-sm text-bear">{error}</div>

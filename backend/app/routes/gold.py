@@ -30,6 +30,7 @@ async def get_gold() -> gold_svc.GoldData:
 
 class GoldReviewRequest(BaseModel):
     language: Literal["en", "zh"] = "zh"
+    period: Literal["day", "week", "month"] = "day"
 
 
 @router.post("/gold-review")
@@ -42,7 +43,7 @@ async def gold_review(request: Request, req: GoldReviewRequest) -> EventSourceRe
 
     async def event_gen():
         try:
-            async for name, payload in stream_gold_review(gold=gold, language=req.language,
+            async for name, payload in stream_gold_review(gold=gold, period=req.period, language=req.language,
                                                           model=settings.quick_think_llm):
                 if name == "done":
                     cost = float(payload.get("cost_usd", 0) or 0)
