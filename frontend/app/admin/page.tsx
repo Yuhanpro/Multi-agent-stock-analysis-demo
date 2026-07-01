@@ -116,49 +116,144 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
+type Period = "today" | "yesterday" | "7d" | "30d" | "total";
+const PERIODS: { id: Period; key: string }[] = [
+  { id: "today", key: "admin.today" }, { id: "yesterday", key: "admin.yesterday" },
+  { id: "7d", key: "admin.last7" }, { id: "30d", key: "admin.last30" }, { id: "total", key: "admin.total" },
+];
+
+function wsum(daily: AdminStats["daily"], field: keyof AdminStats["daily"][number], start: number, len: number): number {
+  let s = 0;
+  for (let i = start; i < start + len && i < daily.length; i++) s += Number(daily[i]?.[field] || 0);
+  return s;
+}
+
+function periodMetrics(stats: AdminStats, period: Period) {
+  const d = stats.daily;
+  const F = ["views", "visitors", "runs", "signups", "cost"] as const;
+  if (period === "total") {
+    return {
+      m: { views: stats.total_views, visitors: stats.total_visitors, runs: stats.runs_total, signups: stats.total_users, cost: stats.cost_total },
+      delta: {} as Record<string, number | null>, hasDelta: false,
+    };
+  }
+  const cfg: Record<string, [number, number]> = { today: [0, 1], yesterday: [1, 1], "7d": [0, 7], "30d": [0, 30] };
+  const [start, len] = cfg[period];
+  const m: Record<string, number> = {};
+  const delta: Record<string, number | null> = {};
+  for (const f of F) {
+    const cur = wsum(d, f, start, len);
+    const prev = wsum(d, f, start + len, len);
+    m[f] = cur;
+    delta[f] = prev > 0 ? (cur - prev) / prev : null;
+  }
+  return { m, delta, hasDelta: true };
+}
+
 function Overview({ stats }: { stats: AdminStats }) {
   const { t, lang } = useT();
   const zh = lang === "zh";
-  const d0 = stats.daily[0] ?? { views: 0, visitors: 0, runs: 0, cost: 0, signups: 0 };
-  const perVisitor = stats.total_visitors ? Math.round((stats.total_views / stats.total_visitors) * 10) / 10 : 0;
-  const conv = stats.total_visitors ? (stats.total_users / stats.total_visitors) * 100 : 0;
-  const costPerRun = stats.runs_total ? stats.cost_total / stats.runs_total : 0;
-  const costPerUser = stats.total_users ? stats.cost_total / stats.total_users : 0;
-  const clicksTotal = stats.clicks_by_mode.reduce((a, m) => a + m.count, 0);
+  const [period, setPeriod] = useState<Period>("today");
+  const { m, delta, hasDelta } = periodMetrics(stats, period);
+  const per = (a: number, b: number) => (b ? a / b : 0);
+  const clicksTotal = stats.clicks_by_mode.reduce((a, x) => a + x.count, 0);
   const topT = stats.top_tickers[0];
+  const money = (v: number) => `$${(v || 0).toFixed(v < 1 ? 3 : 2)}`;
+
   return (
     <div className="space-y-5">
+      {/* period selector */}
+      <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface p-1">
+        {PERIODS.map((p) => (
+          <button key={p.id} onClick={() => setPeriod(p.id)}
+            className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              period === p.id ? "bg-accent text-white shadow-sm" : "text-muted hover:text-heading")}>
+            {t(p.key as never)}
+          </button>
+        ))}
+      </div>
+
       <Section title={t("admin.sec.traffic")}>
-        <StatCard label={t("admin.views")} value={stats.total_views} sub={`${d0.views} ${t("admin.today")}`} />
-        <StatCard label={t("admin.visitors")} value={stats.total_visitors} sub={`${d0.visitors} ${t("admin.today")}`} />
-        <StatCard label={t("admin.perVisitor")} value={perVisitor} />
-        <StatCard label={`${t("admin.new")}·${t("admin.today")}`} value={stats.new_today} tone="bull" />
-        <StatCard label={`${t("admin.returning")}·${t("admin.today")}`} value={stats.returning_today} tone="accent" />
+        <Kpi label={t("admin.views")} value={m.views} delta={delta.views} />
+        <Kpi label={t("admin.visitors")} value={m.visitors} delta={delta.visitors} />
+        <Kpi label={t("admin.perVisitor")} value={per(m.views, m.visitors).toFixed(1)} />
+        <Kpi label={t("admin.new")} value={period === "total" ? stats.total_users : stats.new_today} muted={period !== "today"} />
+        <Kpi label={t("admin.returning")} value={period === "today" ? stats.returning_today : "—"} muted={period !== "today"} />
       </Section>
 
       <Section title={t("admin.sec.users")}>
-        <StatCard label={t("admin.users")} value={stats.total_users} />
-        <StatCard label={`${t("admin.signups")}·${t("admin.today")}`} value={d0.signups} tone="bull" />
-        <StatCard label={t("admin.conv")} value={`${conv.toFixed(1)}%`} />
-        <StatCard label={t("admin.invUsed")} value={`${stats.invites_used}/${stats.invites_total}`} sub={`${stats.invites_active} ${t("admin.invActive")}`} />
+        <Kpi label={t("admin.signups")} value={m.signups} delta={delta.signups} accent />
+        <Kpi label={t("admin.users")} value={stats.total_users} />
+        <Kpi label={t("admin.conv")} value={`${(per(m.signups, m.visitors) * 100).toFixed(1)}%`} />
+        <Kpi label={t("admin.invUsed")} value={`${stats.invites_used}/${stats.invites_total}`} note={`${stats.invites_active} ${t("admin.invActive")}`} />
       </Section>
 
       <Section title={t("admin.sec.usage")}>
-        <StatCard label={t("admin.runs")} value={stats.runs_total} sub={`${d0.runs} ${t("admin.today")}`} />
-        <StatCard label={t("admin.clicks")} value={clicksTotal} />
-        <StatCard label={t("admin.doneRate")} value={clicksTotal ? `${Math.round((stats.runs_total / clicksTotal) * 100)}%` : "—"} />
-        <StatCard label={t("admin.topTicker")} value={topT ? topT.ticker : "—"} sub={topT ? `${topT.count} ${t("ov.analyzed")}` : ""} />
+        <Kpi label={t("admin.runs")} value={m.runs} delta={delta.runs} accent />
+        <Kpi label={t("admin.clicks")} value={period === "total" ? clicksTotal : "—"} muted={period !== "total"} />
+        <Kpi label={t("admin.doneRate")} value={period === "total" && clicksTotal ? `${Math.round(per(stats.runs_total, clicksTotal) * 100)}%` : "—"} muted={period !== "total"} />
+        <Kpi label={t("admin.topTicker")} value={topT ? topT.ticker : "—"} note={topT ? `${topT.count} ${t("ov.analyzed")}` : ""} />
       </Section>
-      {stats.runs_by_mode.length > 0 && <Chips title={t("admin.byMode")} items={stats.runs_by_mode} zh={zh} />}
+      {stats.runs_by_mode.length > 0 && <ModeBar title={t("admin.byMode")} items={stats.runs_by_mode} zh={zh} />}
 
       <Section title={t("admin.sec.cost")} hint={t("admin.costHint")}>
-        <StatCard label={t("admin.cost")} value={`$${(stats.cost_total || 0).toFixed(3)}`} sub={`$${(d0.cost || 0).toFixed(3)} ${t("admin.today")}`} />
-        <StatCard label={t("admin.costPerRun")} value={`$${costPerRun.toFixed(4)}`} />
-        <StatCard label={t("admin.costPerUser")} value={`$${costPerUser.toFixed(3)}`} />
+        <Kpi label={t("admin.cost")} value={money(m.cost)} delta={delta.cost} deltaNeutral />
+        <Kpi label={t("admin.costPerRun")} value={`$${per(m.cost, m.runs).toFixed(4)}`} />
+        <Kpi label={t("admin.costPerUser")} value={`$${per(stats.cost_total, stats.total_users).toFixed(3)}`} />
       </Section>
 
       <PeriodTable stats={stats} />
       <TrendChart stats={stats} />
+      {!hasDelta && <p className="text-[11px] text-muted/60">{t("admin.totalNote")}</p>}
+    </div>
+  );
+}
+
+function Kpi({ label, value, delta, note, accent, muted, deltaNeutral }: {
+  label: string; value: number | string; delta?: number | null; note?: string;
+  accent?: boolean; muted?: boolean; deltaNeutral?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</div>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <span className={cn("text-2xl font-semibold tabular-nums", muted ? "text-muted" : accent ? "text-accent" : "text-heading")}>{value}</span>
+        {delta != null && <Delta v={delta} neutral={deltaNeutral} />}
+      </div>
+      {note && <div className="mt-0.5 text-[11px] text-muted">{note}</div>}
+    </div>
+  );
+}
+
+function Delta({ v, neutral }: { v: number; neutral?: boolean }) {
+  const up = v >= 0;
+  const cls = neutral ? "bg-border/40 text-muted" : up ? "bg-bull/12 text-bull" : "bg-bear/12 text-bear";
+  return (
+    <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", cls)}>
+      {up ? "▲" : "▼"} {Math.abs(v * 100).toFixed(0)}%
+    </span>
+  );
+}
+
+const MODE_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#f59e0b", "#8b5cf6", "#ec4899", "#ef4444", "#64748b"];
+
+function ModeBar({ title, items, zh }: { title: string; items: ModeCount[]; zh: boolean }) {
+  const sorted = [...items].sort((a, b) => b.count - a.count);
+  const max = Math.max(...sorted.map((i) => i.count), 1);
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="mb-3 text-sm font-semibold text-heading">{title}</div>
+      <div className="space-y-2">
+        {sorted.map((m, i) => (
+          <div key={m.mode} className="flex items-center gap-3 text-xs">
+            <span className="w-24 shrink-0 truncate text-muted">{modeLabel(m.mode, zh)}</span>
+            <div className="h-4 flex-1 overflow-hidden rounded bg-bg/40">
+              <div className="h-full rounded" style={{ width: `${(m.count / max) * 100}%`, background: MODE_COLORS[i % MODE_COLORS.length] }} />
+            </div>
+            <span className="w-9 shrink-0 text-right font-semibold tabular-nums text-heading">{m.count}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
