@@ -5,10 +5,13 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
-import { fetchGold, type GoldData, type GoldSeries } from "@/lib/api";
+import { fetchGold, type GoldData, type GoldPoint, type GoldSeries } from "@/lib/api";
+import { CandleChart, type Candle } from "@/components/candle-chart";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
+
+type TF = "min" | "day" | "week" | "month";
 
 export function GoldPanel({ lang }: { lang: Lang }) {
   const { t } = useT();
@@ -16,6 +19,7 @@ export function GoldPanel({ lang }: { lang: Lang }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [which, setWhich] = useState<"domestic" | "intl">("domestic");
+  const [tf, setTf] = useState<TF>("day");
   const [reviewOn, setReviewOn] = useState(0);
 
   useEffect(() => {
@@ -26,7 +30,14 @@ export function GoldPanel({ lang }: { lang: Lang }) {
   if (error || !data) return <div className="mt-6 rounded-lg border border-bear/40 bg-bear/10 px-4 py-3 text-sm text-bear">{error}</div>;
 
   const series = which === "domestic" ? data.domestic : data.intl;
-  const chart = downsample(series.history, 160);
+  const hasIntraday = series.intraday.length > 1;
+  const tfs: TF[] = hasIntraday ? ["min", "day", "week", "month"] : ["day", "week", "month"];
+  const eff: TF = tf === "min" && !hasIntraday ? "day" : tf;
+  const candles: Candle[] =
+    eff === "day" ? toCandles(series.history) :
+    eff === "week" ? aggregate(series.history, "week") :
+    eff === "month" ? aggregate(series.history, "month") : [];
+  const intraday = series.intraday.filter((p) => p.price != null).map((p) => ({ label: p.time.slice(0, 5), price: p.price }));
 
   return (
     <div className="mt-6 space-y-4">
@@ -61,23 +72,37 @@ export function GoldPanel({ lang }: { lang: Lang }) {
       )}
 
       <div className="rounded-xl border border-border bg-surface p-4">
-        <div className="mb-2 text-sm font-semibold text-heading">{series.name} · {t("gold.trend")}</div>
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gold-g" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#d4a017" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#d4a017" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={40} />
-              <YAxis domain={["auto", "auto"]} tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} width={52} />
-              <Tooltip contentStyle={{ background: "hsl(var(--theme-chart-tooltip))", border: "1px solid hsl(var(--theme-chart-grid))", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "hsl(var(--theme-heading))" }} />
-              <Area dataKey="close" name={series.unit} stroke="#d4a017" strokeWidth={2} fill="url(#gold-g)" />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-heading">{series.name}</span>
+          <div className="inline-flex gap-0.5 rounded-lg border border-border p-0.5">
+            {tfs.map((o) => (
+              <button key={o} onClick={() => setTf(o)}
+                className={cn("rounded px-2 py-0.5 text-[11px] font-medium transition-colors", tf === o ? "bg-accent text-white" : "text-muted hover:text-heading")}>
+                {t(`gold.tf.${o}` as never)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="h-64">
+          {eff === "min" ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={intraday} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gold-g" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#d4a017" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#d4a017" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={44} />
+                <YAxis domain={["auto", "auto"]} tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} width={54} />
+                <Tooltip contentStyle={{ background: "hsl(var(--theme-chart-tooltip))", border: "1px solid hsl(var(--theme-chart-grid))", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "hsl(var(--theme-heading))" }} />
+                <Area dataKey="price" name={series.unit} stroke="#d4a017" strokeWidth={2} fill="url(#gold-g)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <CandleChart candles={candles} unit={series.unit} />
+          )}
         </div>
       </div>
 
@@ -148,9 +173,39 @@ function GoldReview({ nonce, language }: { nonce: number; language: Lang }) {
   );
 }
 
-function downsample(pts: { date: string; close: number | null }[], target: number) {
-  const clean = pts.filter((p) => p.close != null).map((p) => ({ date: p.date.slice(5), close: p.close }));
-  if (clean.length <= target) return clean;
-  const step = Math.ceil(clean.length / target);
-  return clean.filter((_, i) => i % step === 0 || i === clean.length - 1);
+function toCandles(daily: GoldPoint[], n = 120): Candle[] {
+  return daily.filter((p) => p.close != null).slice(-n).map((p) => ({
+    label: p.date.slice(5),
+    open: p.open ?? p.close!, high: p.high ?? p.close!, low: p.low ?? p.close!, close: p.close!,
+  }));
+}
+
+function isoWeekKey(date: string): string {
+  const d = new Date(date + "T00:00:00Z");
+  const day = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - day + 3);
+  const firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((d.getTime() - firstThu.getTime()) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function aggregate(daily: GoldPoint[], by: "week" | "month", n = 120): Candle[] {
+  const groups: Record<string, GoldPoint[]> = {};
+  const order: string[] = [];
+  for (const p of daily) {
+    if (p.close == null) continue;
+    const key = by === "month" ? p.date.slice(0, 7) : isoWeekKey(p.date);
+    if (!groups[key]) { groups[key] = []; order.push(key); }
+    groups[key].push(p);
+  }
+  return order.map((k) => {
+    const ps = groups[k];
+    return {
+      label: by === "month" ? k : ps[ps.length - 1].date.slice(5),
+      open: ps[0].open ?? ps[0].close!,
+      high: Math.max(...ps.map((x) => x.high ?? x.close!)),
+      low: Math.min(...ps.map((x) => x.low ?? x.close!)),
+      close: ps[ps.length - 1].close!,
+    };
+  }).slice(-n);
 }

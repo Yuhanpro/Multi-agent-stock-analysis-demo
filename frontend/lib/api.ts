@@ -336,9 +336,18 @@ export async function fetchMarketOverview(market: Market = "CN"): Promise<Market
 
 // ---------- gold ------------------------------------------------------------
 
-export interface GoldPoint { date: string; close: number | null; }
+export interface GoldPoint {
+  date: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+}
+export interface IntradayPoint { time: string; price: number | null; }
 export interface GoldSeries {
-  name: string; unit: string; price: number | null; change_pct: number | null; history: GoldPoint[];
+  name: string; unit: string; price: number | null; change_pct: number | null;
+  history: GoldPoint[];
+  intraday: IntradayPoint[];
 }
 export interface GoldData {
   domestic: GoldSeries;
