@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import budget
+from app.services import budget, events
 from app.services.market_data import get_snapshot
 from app.services.rate_limit import check_and_count
 from app.services.skill_runner import sse_event, stream_followup
@@ -72,6 +72,8 @@ async def chat(request: Request, req: ChatRequest) -> EventSourceResponse:
                     cost = float(payload.get("cost_usd", 0) or 0)
                     new_total = budget.add_cost(cost)
                     payload["budget_today_usd"] = round(new_total, 6)
+                    events.record_run(request, mode="followup", ticker=req.ticker,
+                                      market=req.market, cost_usd=cost)
                 yield sse_event(event_name, payload)
         except Exception as e:
             log.exception("chat stream failed")

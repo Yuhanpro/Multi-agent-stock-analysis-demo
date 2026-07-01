@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import auth, budget, reports
+from app.services import auth, budget, events, reports
 from app.services.financials import get_financials
 from app.services.market_data import get_snapshot
 from app.services.rate_limit import check_and_count
@@ -92,17 +92,20 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
                     cost = float(payload.get("cost_usd", 0) or 0)
                     new_total = budget.add_cost(cost)
                     payload["budget_today_usd"] = round(new_total, 6)
+                    run_mode = (
+                        "diagnose" if req.cost_basis is not None
+                        else "serenity" if req.skill == "serenity"
+                        else "quick"
+                    )
+                    events.record_run(request, mode=run_mode, ticker=req.ticker,
+                                      market=req.market, cost_usd=cost)
                     if user and chunks:
                         try:
                             meta = reports.save_report(
                                 user.id,
                                 ticker=req.ticker,
                                 market=req.market,
-                                mode=(
-                                "diagnose" if req.cost_basis is not None
-                                else "serenity" if req.skill == "serenity"
-                                else "quick"
-                            ),
+                                mode=run_mode,
                                 language=req.language,
                                 content="".join(chunks),
                                 cost_usd=cost,

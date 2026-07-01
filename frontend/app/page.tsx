@@ -133,7 +133,7 @@ export default function Page() {
         </div>
 
         <section className="space-y-2.5">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted">{t("mode.pick")}</div>
+          <div className="text-sm font-bold tracking-wide text-heading sm:text-base">{t("mode.pick")}</div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {MODE_DEFS.map((m) => {
               const active = mode === m.id;

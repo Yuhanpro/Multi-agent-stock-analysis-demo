@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import budget, gold as gold_svc
+from app.services import budget, events, gold as gold_svc
 from app.services.rate_limit import check_and_count
 from app.services.skill_runner import sse_event, stream_gold_chat, stream_gold_review
 
@@ -48,6 +48,7 @@ async def gold_review(request: Request, req: GoldReviewRequest) -> EventSourceRe
                 if name == "done":
                     cost = float(payload.get("cost_usd", 0) or 0)
                     payload["budget_today_usd"] = round(budget.add_cost(cost), 6)
+                    events.record_run(request, mode="gold-review", market="gold", cost_usd=cost)
                 yield sse_event(name, payload)
         except Exception as e:
             log.exception("gold review stream failed")
@@ -83,7 +84,9 @@ async def gold_chat(request: Request, req: GoldChatRequest) -> EventSourceRespon
                 question=req.question, language=req.language, model=settings.quick_think_llm,
             ):
                 if name == "done":
-                    payload["budget_today_usd"] = round(budget.add_cost(float(payload.get("cost_usd", 0) or 0)), 6)
+                    cost = float(payload.get("cost_usd", 0) or 0)
+                    payload["budget_today_usd"] = round(budget.add_cost(cost), 6)
+                    events.record_run(request, mode="gold-chat", market="gold", cost_usd=cost)
                 yield sse_event(name, payload)
         except Exception as e:
             log.exception("gold chat stream failed")

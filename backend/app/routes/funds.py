@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import auth, budget, reports
+from app.services import auth, budget, events, reports
 from app.services.funds import Fund, get_fund, search_funds
 from app.services.rate_limit import check_and_count
 from app.services.skill_runner import sse_event, stream_fund_review
@@ -76,6 +76,8 @@ async def fund_analyze(request: Request, req: FundAnalyzeRequest) -> EventSource
                     cost = float(payload.get("cost_usd", 0) or 0)
                     new_total = budget.add_cost(cost)
                     payload["budget_today_usd"] = round(new_total, 6)
+                    events.record_run(request, mode="fund", ticker=fund_obj.code,
+                                      market="CN", cost_usd=cost)
                     if user and chunks:
                         try:
                             meta = reports.save_report(

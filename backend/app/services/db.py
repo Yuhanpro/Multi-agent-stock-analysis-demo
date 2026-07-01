@@ -124,6 +124,19 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_paper_trades_user ON paper_trades(user_id, ts);
+
+-- Every analysis run (anonymous + signed-in), for accurate all-user usage/cost.
+CREATE TABLE IF NOT EXISTS runs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    anon_id    TEXT,
+    user_id    INTEGER,
+    mode       TEXT NOT NULL,
+    ticker     TEXT,
+    market     TEXT,
+    cost_usd   REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at);
 """
 
 
@@ -143,7 +156,17 @@ def init_db() -> None:
     with _lock:
         if _conn is None:
             _conn = _connect()
+        had_runs = _conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='runs'"
+        ).fetchone() is not None
         _conn.executescript(SCHEMA)
+        # One-time backfill: seed the new runs table from historical reports so
+        # existing signed-in runs/costs aren't lost when we switch metrics over.
+        if not had_runs:
+            _conn.execute(
+                "INSERT INTO runs (user_id, mode, ticker, market, cost_usd, created_at) "
+                "SELECT user_id, mode, ticker, market, cost_usd, created_at FROM reports"
+            )
         # Lightweight migration: add columns introduced after first deploy.
         cols = {r["name"] for r in _conn.execute("PRAGMA table_info(reports)").fetchall()}
         if "is_public" not in cols:

@@ -1,11 +1,14 @@
 """Lightweight page-view tracking + admin analytics aggregations."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel
 
 from app.services import db
+
+log = logging.getLogger(__name__)
 
 
 class PathHit(BaseModel):
@@ -95,6 +98,26 @@ def log_event(anon_id: str, path: str, user_id: int | None = None) -> None:
     )
 
 
+def record_run(request, mode: str, ticker: str | None = None,
+               market: str | None = None, cost_usd: float = 0.0) -> None:
+    """Log one analysis run for ANY user (anon or signed-in). Best-effort —
+    never raise into the SSE stream. This is the source of truth for all-user
+    usage & true AI spend (reports only ever captured signed-in users)."""
+    try:
+        from app.services import auth  # lazy: avoid import cycle at module load
+        anon = (request.headers.get("x-anon-id") or "").strip()[:64] or None
+        user = auth.user_from_request(request)
+        db.execute(
+            "INSERT INTO runs (anon_id, user_id, mode, ticker, market, cost_usd, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (anon, user.id if user else None, str(mode)[:32],
+             (str(ticker)[:32] if ticker else None), (str(market)[:16] if market else None),
+             float(cost_usd or 0), datetime.now(timezone.utc).isoformat()),
+        )
+    except Exception:
+        log.warning("record_run failed", exc_info=True)
+
+
 def _scalar(sql: str, params: tuple = ()) -> int:
     row = db.query_one(sql, params)
     if not row:
@@ -127,8 +150,10 @@ def get_stats() -> Stats:
     day_list = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
     ev = {r["d"]: (r["v"], r["u"]) for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS v, COUNT(DISTINCT anon_id) AS u FROM events GROUP BY d")}
-    rp = {r["d"]: (r["c"], r["cost"]) for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c, COALESCE(SUM(cost_usd),0) AS cost FROM reports GROUP BY d")}
+    rp = {r["d"]: r["c"] for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM reports GROUP BY d")}
+    rc = {r["d"]: r["cost"] for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COALESCE(SUM(cost_usd),0) AS cost FROM runs GROUP BY d")}
     an = {r["d"]: r["c"] for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM events WHERE path LIKE 'run:%' GROUP BY d")}
     su = {r["d"]: r["c"] for r in db.query_all(
@@ -138,7 +163,7 @@ def get_stats() -> Stats:
             date=d,
             views=ev.get(d, (0, 0))[0], visitors=ev.get(d, (0, 0))[1],
             analyses=an.get(d, 0),
-            runs=rp.get(d, (0, 0))[0], cost=round(float(rp.get(d, (0, 0))[1] or 0), 4),
+            runs=rp.get(d, 0), cost=round(float(rc.get(d, 0) or 0), 4),
             signups=su.get(d, 0),
         )
         for d in day_list
@@ -146,16 +171,19 @@ def get_stats() -> Stats:
     # All-user analysis starts (run:% events) vs saved reports (signed-in only).
     s.analyses_total = _scalar("SELECT COUNT(*) FROM events WHERE path LIKE 'run:%'")
     s.runs_total = _scalar("SELECT COUNT(*) FROM reports")
-    cost_row = db.query_one("SELECT COALESCE(SUM(cost_usd), 0) AS c FROM reports")
+    # Cost / modes / tickers from the runs table = ALL users (anon + signed-in),
+    # the true picture. (reports only ever captured signed-in users.)
+    cost_row = db.query_one("SELECT COALESCE(SUM(cost_usd), 0) AS c FROM runs")
     s.cost_total = round(float(cost_row["c"] or 0), 4) if cost_row else 0.0
     s.runs_by_mode = [
         ModeCount(mode=r["mode"], count=r["c"])
-        for r in db.query_all("SELECT mode, COUNT(*) AS c FROM reports GROUP BY mode ORDER BY c DESC")
+        for r in db.query_all("SELECT mode, COUNT(*) AS c FROM runs GROUP BY mode ORDER BY c DESC")
     ]
     s.top_tickers = [
-        TickerHit(ticker=r["ticker"], market=r["market"], count=r["c"])
+        TickerHit(ticker=r["ticker"], market=r["market"] or "", count=r["c"])
         for r in db.query_all(
-            "SELECT ticker, market, COUNT(*) AS c FROM reports GROUP BY ticker, market ORDER BY c DESC LIMIT 10"
+            "SELECT ticker, market, COUNT(*) AS c FROM runs WHERE ticker IS NOT NULL "
+            "GROUP BY ticker, market ORDER BY c DESC LIMIT 10"
         )
     ]
     # Analysis-trigger clicks (events logged as run:<mode>, incl. snapshot;

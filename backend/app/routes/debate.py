@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import auth, budget, reports
+from app.services import auth, budget, events, reports
 from app.services.market_data import get_snapshot
 from app.services.rate_limit import check_and_count
 from app.services.tradingagents_runner import sse_event, stream_debate
@@ -107,6 +107,8 @@ async def debate(request: Request, req: DebateRequest) -> EventSourceResponse:
                     new_total = budget.add_cost(flat_cost)
                     payload["est_cost_usd"] = flat_cost
                     payload["budget_today_usd"] = round(new_total, 6)
+                    events.record_run(request, mode="debate", ticker=req.ticker,
+                                      market=req.market, cost_usd=flat_cost)
                     if user and (final_decision or agent_reports):
                         try:
                             content = _assemble_debate_md(
