@@ -16,6 +16,7 @@ from app.routes import (
     feedback,
     financials,
     funds,
+    gold,
     market_overview,
     paper,
     quick,
@@ -72,6 +73,7 @@ app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(alerts.router, prefix="/api", tags=["alerts"])
 app.include_router(paper.router, prefix="/api", tags=["paper"])
+app.include_router(gold.router, prefix="/api", tags=["gold"])
 app.include_router(debate.router, prefix="/api", tags=["debate"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])

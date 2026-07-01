@@ -531,6 +531,103 @@ async def stream_followup(
     }
 
 
+_GOLD_SYSTEM = """你是一位专业的黄金市场分析师,为用户做**每日黄金复盘**。你会拿到国内金(上海黄金 Au99.99,元/克)、国际金(COMEX,美元/盎司)的价格与近期走势,以及全球黄金ETF持仓变化。
+
+请输出一份简明复盘,结构:
+1. **今日/近日走势回顾**:国内金、国际金各自的涨跌与幅度。
+2. **内外联动与价差**:两者方向是否一致、价差(汇率因素)有何变化。
+3. **资金面**:全球黄金ETF持仓增减持,说明多空资金意愿。
+4. **关键价位与后市关注点**:值得盯的价位区间、可能的催化(美元、实际利率、避险、央行购金等,作为**背景逻辑**说明,而非当日实证)。
+5. **一句话小结**。
+
+原则:
+- 只依据提供的数据说涨跌与数字,**不要编造具体新闻或未提供的数字**;宏观驱动只作背景逻辑,明确它不是当日证据。
+- 客观中性,给"关注方向"而非确定性预测。
+- 不构成投资建议。用简体中文,简明(要点或 4–6 段)。"""
+
+
+def _pct_over(history: list, n: int) -> float | None:
+    pts = [p for p in history if getattr(p, "close", None) is not None]
+    if len(pts) <= n:
+        return None
+    last, past = pts[-1].close, pts[-1 - n].close
+    return (last / past - 1) if past else None
+
+
+def _format_gold_for_prompt(gold) -> str:
+    def pct(v):
+        return f"{v*100:+.2f}%" if v is not None else "n/a"
+
+    def line(s):
+        return (f"- {s.name}:现价 {s.price} {s.unit} · 今日 {pct(s.change_pct)} · "
+                f"近5日 {pct(_pct_over(s.history, 5))} · 近20日 {pct(_pct_over(s.history, 20))}")
+
+    parts = ["## 黄金数据(截至最新)", line(gold.domestic), line(gold.intl)]
+    if gold.etf_total is not None:
+        parts.append(f"- 全球黄金ETF持仓:{gold.etf_total} 吨 · 较上日 {gold.etf_change:+.2f} 吨({gold.etf_date})")
+    # last ~10 closes, aligned by index tail
+    dom = [p for p in gold.domestic.history if p.close is not None][-10:]
+    intl = [p for p in gold.intl.history if p.close is not None][-10:]
+    parts.append("\n近约10日收盘 —— 国内金(元/克):")
+    parts.append("  " + ", ".join(f"{p.date[5:]}:{p.close}" for p in dom))
+    parts.append("国际金(美元/盎司):")
+    parts.append("  " + ", ".join(f"{p.date[5:]}:{p.close}" for p in intl))
+    return "\n".join(parts)
+
+
+async def stream_gold_review(*, gold, model: str | None = None, language: str = "zh") -> AsyncIterator[tuple[str, dict]]:
+    """AI daily gold recap (reuses the DeepSeek streaming + cost model)."""
+    settings = get_settings()
+    if not settings.deepseek_api_key:
+        yield "error", {"message": "DEEPSEEK_API_KEY not configured on server"}
+        return
+    model = model or settings.quick_think_llm
+
+    user_text = _format_gold_for_prompt(gold) + "\n\n## 任务\n\n请做今日黄金复盘。"
+    if not (language or "zh").lower().startswith("zh"):
+        user_text += "\n**Write the review in English.**"
+
+    yield "meta", {"model": model, "skill": "gold"}
+    client = AsyncOpenAI(
+        api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url,
+        http_client=httpx.AsyncClient(trust_env=False),
+    )
+    usage = None
+    stop_reason = None
+    try:
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": _GOLD_SYSTEM}, {"role": "user", "content": user_text}],
+            max_tokens=2048, stream=True, stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            if chunk.usage is not None:
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.delta and choice.delta.content:
+                yield "token", {"text": choice.delta.content}
+            if choice.finish_reason:
+                stop_reason = choice.finish_reason
+    except Exception as e:
+        log.exception("gold review stream failed")
+        yield "error", {"message": f"upstream error: {e}"}
+        return
+
+    in_tok = usage.prompt_tokens if usage else 0
+    out_tok = usage.completion_tokens if usage else 0
+    cached = 0
+    if usage is not None:
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+    yield "done", {
+        "input_tokens": in_tok, "output_tokens": out_tok, "cached_input_tokens": cached,
+        "cost_usd": round(estimate_cost_usd(model, in_tok, out_tok, cached), 6),
+        "stop_reason": stop_reason or "stop",
+    }
+
+
 def sse_event(event: str, data: dict) -> dict:
     """Shape expected by sse_starlette.EventSourceResponse.
 

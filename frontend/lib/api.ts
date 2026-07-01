@@ -334,6 +334,25 @@ export async function fetchMarketOverview(market: Market = "CN"): Promise<Market
   return readJsonOrThrow(await fetch(`${API_BASE}/api/market-overview?market=${market}`));
 }
 
+// ---------- gold ------------------------------------------------------------
+
+export interface GoldPoint { date: string; close: number | null; }
+export interface GoldSeries {
+  name: string; unit: string; price: number | null; change_pct: number | null; history: GoldPoint[];
+}
+export interface GoldData {
+  domestic: GoldSeries;
+  intl: GoldSeries;
+  etf_total: number | null;
+  etf_change: number | null;
+  etf_date: string | null;
+  source: string;
+}
+
+export async function fetchGold(): Promise<GoldData> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/gold`));
+}
+
 // ---------- admin + tracking ------------------------------------------------
 
 export interface InviteCode {
