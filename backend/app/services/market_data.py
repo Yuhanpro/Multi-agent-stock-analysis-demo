@@ -258,18 +258,24 @@ def _us_snapshot_akshare(ticker: str) -> Snapshot:
 
 
 _CN_SPOT_CACHE: tuple[float, object] | None = None
+_CN_SPOT_LOCK = __import__("threading").Lock()
 
 
 def get_cn_spot():
     """Shared 60s-cached A-share spot table (akshare stock_zh_a_spot, Sina).
-    Reused by the realtime quote and the market-overview hot lists."""
+    Reused by the realtime quote and the market-overview hot lists. The lock
+    collapses concurrent cold callers into a single upstream fetch (the overview
+    runs companies + breadth in parallel, both of which need this table)."""
     global _CN_SPOT_CACHE
     import akshare as ak
 
-    now = time.time()
-    if _CN_SPOT_CACHE is None or now - _CN_SPOT_CACHE[0] > 60:
-        _CN_SPOT_CACHE = (now, ak.stock_zh_a_spot())
-    return _CN_SPOT_CACHE[1]
+    if _CN_SPOT_CACHE is not None and time.time() - _CN_SPOT_CACHE[0] <= 60:
+        return _CN_SPOT_CACHE[1]
+    with _CN_SPOT_LOCK:
+        now = time.time()
+        if _CN_SPOT_CACHE is None or now - _CN_SPOT_CACHE[0] > 60:
+            _CN_SPOT_CACHE = (now, ak.stock_zh_a_spot())
+        return _CN_SPOT_CACHE[1]
 
 
 def _cn_realtime_quote(code: str) -> RealtimeQuote | None:

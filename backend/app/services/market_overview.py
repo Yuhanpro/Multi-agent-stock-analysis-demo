@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from pydantic import BaseModel
@@ -22,6 +24,8 @@ log = logging.getLogger(__name__)
 
 _CACHE: dict[str, tuple[float, "MarketOverview"]] = {}
 _TTL = 300
+_REFRESHING: set[str] = set()          # markets currently refreshing in background
+_REFRESH_LOCK = threading.Lock()
 
 # US/HK have no reliable market-wide turnover feed from the mainland VPS
 # (the EM spot/famous endpoints route through push2.eastmoney → blocked, and the
@@ -262,16 +266,26 @@ def _daily_move(ticker: str, market: str):
 
 
 def _curated_companies(market: str) -> list[HotCompany]:
-    out: list[HotCompany] = []
-    for code, name in _CURATED.get(market, []):
+    items = _CURATED.get(market, [])
+    if not items:
+        return []
+
+    def fetch(pair: tuple[str, str]) -> "HotCompany | None":
+        code, name = pair
         try:
             r = _daily_move(code, market)
             if r:
                 price, chg, amt = r
-                out.append(HotCompany(code=code, name=name, market=market,
-                                      price=price, change_pct=chg, amount=amt))
+                return HotCompany(code=code, name=name, market=market,
+                                  price=price, change_pct=chg, amount=amt)
         except Exception as e:
             log.warning("daily move %s/%s failed: %s", code, market, e)
+        return None
+
+    # Each ticker is an independent Sina fetch — run them concurrently instead of
+    # one-by-one (was the main US/HK slowdown: N sequential network round-trips).
+    with ThreadPoolExecutor(max_workers=min(10, len(items))) as ex:
+        out = [hc for hc in ex.map(fetch, items) if hc]
     out.sort(key=lambda x: (x.change_pct if x.change_pct is not None else -999), reverse=True)
     return out
 
@@ -287,29 +301,84 @@ def _site_top(market: str) -> list[SiteTop]:
     return [SiteTop(ticker=r["ticker"], market=r["market"], count=r["c"]) for r in rows]
 
 
+def _parallel(tasks: dict[str, "callable"]) -> dict:
+    """Run independent fetchers concurrently; a failing task yields None."""
+    results: dict = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(tasks) or 1)) as ex:
+        futs = {ex.submit(fn): key for key, fn in tasks.items()}
+        for fut, key in futs.items():
+            try:
+                results[key] = fut.result()
+            except Exception as e:
+                log.warning("overview task %s failed: %s", key, e)
+                results[key] = None
+    return results
+
+
+def _compute(market: str) -> MarketOverview:
+    ov = MarketOverview(source="sina")
+    if market == "CN":
+        # All independent; get_cn_spot() is lock-guarded so companies + breadth
+        # share one fetch, which overlaps the indices/news round-trips.
+        r = _parallel({
+            "spot": get_cn_spot,   # kick off the shared A-share fetch early
+            "indices": _indices,
+            "industries": _industries,
+            "companies": _companies,
+            "breadth": _breadth,
+            "news": lambda: _news(market),
+            "site_top": lambda: _site_top(market),
+        })
+        ov.indices = r.get("indices") or []
+        ov.hot_industries = r.get("industries") or []
+        ov.hot_companies = r.get("companies") or []
+        ov.breadth = r.get("breadth")
+    else:
+        r = _parallel({
+            "companies": lambda: _curated_companies(market),
+            "news": lambda: _news(market),
+            "site_top": lambda: _site_top(market),
+        })
+        ov.hot_companies = r.get("companies") or []
+    ov.news = r.get("news") or []
+    ov.site_top = r.get("site_top") or []
+    return ov
+
+
+def _refresh(market: str) -> None:
+    try:
+        _CACHE[market] = (time.time(), _compute(market))
+    except Exception as e:
+        log.warning("overview refresh %s failed: %s", market, e)
+    finally:
+        with _REFRESH_LOCK:
+            _REFRESHING.discard(market)
+
+
 def get_overview(market: str = "CN") -> MarketOverview:
     market = market if market in ("CN", "US", "HK") else "CN"
     hit = _CACHE.get(market)
-    if hit and time.time() - hit[0] < _TTL:
+    now = time.time()
+    if hit and now - hit[0] < _TTL:
         return hit[1]
-    ov = MarketOverview(source="sina")
-    try:
-        if market == "CN":
-            ov.indices = _indices()
-            ov.hot_industries = _industries()
-            ov.hot_companies = _companies()
-            ov.breadth = _breadth()
-        else:
-            ov.hot_companies = _curated_companies(market)
-    except Exception as e:
-        log.warning("overview %s failed: %s", market, e)
-    try:
-        ov.news = _news(market)
-    except Exception as e:
-        log.warning("news failed: %s", e)
-    try:
-        ov.site_top = _site_top(market)
-    except Exception as e:
-        log.warning("site top failed: %s", e)
+    if hit:
+        # Stale-while-revalidate: serve the stale copy instantly, refresh in the
+        # background so a user never waits on the upstream fetch after warm-up.
+        with _REFRESH_LOCK:
+            if market not in _REFRESHING:
+                _REFRESHING.add(market)
+                threading.Thread(target=_refresh, args=(market,), daemon=True).start()
+        return hit[1]
+    ov = _compute(market)  # cold cache — compute synchronously this once
     _CACHE[market] = (time.time(), ov)
     return ov
+
+
+def warm() -> None:
+    """Prime CN/US/HK caches at startup so first requests are instant."""
+    for m in ("CN", "US", "HK"):
+        try:
+            _CACHE[m] = (time.time(), _compute(m))
+            log.info("market-overview warmed: %s", m)
+        except Exception as e:
+            log.warning("market-overview warm %s failed: %s", m, e)
