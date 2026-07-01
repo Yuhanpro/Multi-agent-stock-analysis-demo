@@ -182,14 +182,14 @@ function Overview({ stats }: { stats: AdminStats }) {
       </Section>
 
       <Section title={t("admin.sec.users")}>
-        <Kpi label={t("admin.signups")} value={m.signups} delta={delta.signups} accent />
+        <Kpi label={t("admin.signups")} value={m.signups} delta={delta.signups} />
         <Kpi label={t("admin.users")} value={stats.total_users} />
         <Kpi label={t("admin.conv")} value={`${(per(m.signups, m.visitors) * 100).toFixed(1)}%`} />
         <Kpi label={t("admin.invUsed")} value={`${stats.invites_used}/${stats.invites_total}`} note={`${stats.invites_active} ${t("admin.invActive")}`} />
       </Section>
 
       <Section title={t("admin.sec.usage")}>
-        <Kpi label={t("admin.runs")} value={m.runs} delta={delta.runs} accent />
+        <Kpi label={t("admin.runs")} value={m.runs} delta={delta.runs} />
         <Kpi label={t("admin.clicks")} value={period === "total" ? clicksTotal : "—"} muted={period !== "total"} />
         <Kpi label={t("admin.doneRate")} value={period === "total" && clicksTotal ? `${Math.round(per(stats.runs_total, clicksTotal) * 100)}%` : "—"} muted={period !== "total"} />
         <Kpi label={t("admin.topTicker")} value={topT ? topT.ticker : "—"} note={topT ? `${topT.count} ${t("ov.analyzed")}` : ""} />
@@ -235,7 +235,9 @@ function Delta({ v, neutral }: { v: number; neutral?: boolean }) {
   );
 }
 
-const MODE_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#f59e0b", "#8b5cf6", "#ec4899", "#ef4444", "#64748b"];
+// Cohesive cool ramp (blue→sky→cyan→teal→indigo→violet→purple) + one warm accent —
+// sits harmoniously on the navy theme instead of a rainbow.
+const MODE_COLORS = ["#3b82f6", "#38bdf8", "#22d3ee", "#2dd4bf", "#6366f1", "#8b5cf6", "#c084fc", "#f59e0b"];
 
 function ModeBar({ title, items, zh }: { title: string; items: ModeCount[]; zh: boolean }) {
   const sorted = [...items].sort((a, b) => b.count - a.count);
@@ -315,8 +317,8 @@ function Traffic({ stats }: { stats: AdminStats }) {
             <BarChart data={hours} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
               <XAxis dataKey="h" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 9 }} tickLine={false} axisLine={false} interval={1} />
-              <Tooltip contentStyle={tipStyle} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: "#2563eb", opacity: 0.08 }} />
-              <Bar dataKey="count" fill="#2563eb" radius={[3, 3, 0, 0]} />
+              <Tooltip contentStyle={tipStyle} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: "hsl(var(--theme-accent))", opacity: 0.10 }} />
+              <Bar dataKey="count" fill="hsl(var(--theme-accent))" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -457,14 +459,14 @@ function TrendChart({ stats }: { stats: AdminStats }) {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="adm-v" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2563eb" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                <stop offset="0%" stopColor="hsl(var(--theme-accent))" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="hsl(var(--theme-accent))" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={tipStyle} labelStyle={{ color: "hsl(var(--theme-heading))" }} />
-            <Area name="views" dataKey="views" stroke="#2563eb" strokeWidth={2} fill="url(#adm-v)" />
+            <Area name="views" dataKey="views" stroke="hsl(var(--theme-accent))" strokeWidth={2} fill="url(#adm-v)" />
             <Area name="visitors" dataKey="visitors" stroke="#38bdf8" strokeWidth={2} fill="transparent" />
           </AreaChart>
         </ResponsiveContainer>
