@@ -149,6 +149,11 @@ function periodMetrics(stats: AdminStats, period: Period) {
     m[f] = cur;
     delta[f] = prev > 0 ? (cur - prev) / prev : null;
   }
+  // Visitors over multi-day windows must be TRUE distinct (not summed daily
+  // uniques, which double-count multi-day visitors). Today/yesterday are already
+  // single-day = exact; no reliable prev-window distinct → drop the delta.
+  if (period === "7d") { m.visitors = stats.visitors_7d; delta.visitors = null; }
+  else if (period === "30d") { m.visitors = stats.visitors_30d; delta.visitors = null; }
   return { m, delta, hasDelta: true };
 }
 
@@ -289,13 +294,16 @@ function PeriodTable({ stats }: { stats: AdminStats }) {
         <tbody className="tabular-nums">
           {rows.map((r) => {
             const f = r.fmt ?? ((v: number) => String(Math.round(v)));
+            // Visitors are distinct — use true windowed counts, not summed dailies.
+            const w7 = r.key === "visitors" ? stats.visitors_7d : win(7, r.key);
+            const w30 = r.key === "visitors" ? stats.visitors_30d : win(30, r.key);
             return (
               <tr key={r.key} className="border-t border-border/40">
                 <td className="py-1 pr-3 text-left text-muted">{r.label}</td>
                 <td className="px-2 py-1 font-semibold text-heading">{f(at(0, r.key))}</td>
                 <td className="px-2 py-1 text-body">{f(at(1, r.key))}</td>
-                <td className="px-2 py-1 text-body">{f(win(7, r.key))}</td>
-                <td className="px-2 py-1 text-body">{f(win(30, r.key))}</td>
+                <td className="px-2 py-1 text-body">{f(w7)}</td>
+                <td className="px-2 py-1 text-body">{f(w30)}</td>
                 <td className="px-2 py-1 font-semibold text-accent">{f(r.total)}</td>
               </tr>
             );

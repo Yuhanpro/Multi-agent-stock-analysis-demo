@@ -54,6 +54,8 @@ class Stats(BaseModel):
     today_views: int = 0
     total_visitors: int = 0
     today_visitors: int = 0
+    visitors_7d: int = 0     # true distinct visitors over the last 7 / 30 days
+    visitors_30d: int = 0
     total_users: int = 0
     top_paths: list[PathHit] = []
     daily: list[DailyPoint] = []
@@ -107,6 +109,12 @@ def get_stats() -> Stats:
         today_visitors=_scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10)=?", (today,)),
         total_users=_scalar("SELECT COUNT(*) FROM users WHERE email NOT LIKE 'anon:%'"),
     )
+    # True distinct visitors over the trailing 7 / 30 days (can't be derived from
+    # summed daily uniques — that would double-count multi-day visitors).
+    _d7 = (datetime.now(timezone.utc) - timedelta(days=6)).strftime("%Y-%m-%d")
+    _d30 = (datetime.now(timezone.utc) - timedelta(days=29)).strftime("%Y-%m-%d")
+    s.visitors_7d = _scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10) >= ?", (_d7,))
+    s.visitors_30d = _scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10) >= ?", (_d30,))
     s.top_paths = [
         PathHit(path=r["path"], count=r["c"])
         for r in db.query_all("SELECT path, COUNT(*) AS c FROM events GROUP BY path ORDER BY c DESC LIMIT 12")

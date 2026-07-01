@@ -396,6 +396,8 @@ export interface AdminStats {
   today_views: number;
   total_visitors: number;
   today_visitors: number;
+  visitors_7d: number;
+  visitors_30d: number;
   total_users: number;
   top_paths: PathHit[];
   daily: DailyPoint[];
