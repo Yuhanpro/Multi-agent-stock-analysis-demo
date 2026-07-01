@@ -235,9 +235,9 @@ function Delta({ v, neutral }: { v: number; neutral?: boolean }) {
   );
 }
 
-// Cohesive cool ramp (blue→sky→cyan→teal→indigo→violet→purple) + one warm accent —
-// sits harmoniously on the navy theme instead of a rainbow.
-const MODE_COLORS = ["#3b82f6", "#38bdf8", "#22d3ee", "#2dd4bf", "#6366f1", "#8b5cf6", "#c084fc", "#f59e0b"];
+// Monochromatic blue ramp (bright→pale) derived from the brand palette. The
+// darkest shades (#030c30/#061860) are dropped — they vanish on the navy bg.
+const MODE_COLORS = ["#0e3bf1", "#2850f2", "#3f62f3", "#5776f5", "#6f89f6", "#879df7", "#9fb1f9", "#b8c5fb"];
 
 function ModeBar({ title, items, zh }: { title: string; items: ModeCount[]; zh: boolean }) {
   const sorted = [...items].sort((a, b) => b.count - a.count);
@@ -317,8 +317,8 @@ function Traffic({ stats }: { stats: AdminStats }) {
             <BarChart data={hours} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
               <XAxis dataKey="h" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 9 }} tickLine={false} axisLine={false} interval={1} />
-              <Tooltip contentStyle={tipStyle} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: "hsl(var(--theme-accent))", opacity: 0.10 }} />
-              <Bar dataKey="count" fill="hsl(var(--theme-accent))" radius={[3, 3, 0, 0]} />
+              <Tooltip contentStyle={tipStyle} labelStyle={{ color: "hsl(var(--theme-heading))" }} cursor={{ fill: "#0e3bf1", opacity: 0.12 }} />
+              <Bar dataKey="count" fill="#0e3bf1" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -459,15 +459,15 @@ function TrendChart({ stats }: { stats: AdminStats }) {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="adm-v" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(var(--theme-accent))" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="hsl(var(--theme-accent))" stopOpacity={0} />
+                <stop offset="0%" stopColor="#0e3bf1" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="#0e3bf1" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke="hsl(var(--theme-chart-grid))" vertical={false} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--theme-muted))", fontSize: 10 }} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={tipStyle} labelStyle={{ color: "hsl(var(--theme-heading))" }} />
-            <Area name="views" dataKey="views" stroke="hsl(var(--theme-accent))" strokeWidth={2} fill="url(#adm-v)" />
-            <Area name="visitors" dataKey="visitors" stroke="#38bdf8" strokeWidth={2} fill="transparent" />
+            <Area name="views" dataKey="views" stroke="#0e3bf1" strokeWidth={2} fill="url(#adm-v)" />
+            <Area name="visitors" dataKey="visitors" stroke="#6f89f6" strokeWidth={2} fill="transparent" />
           </AreaChart>
         </ResponsiveContainer>
       </div>
