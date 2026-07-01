@@ -450,6 +450,22 @@ export async function fetchAdminStats(): Promise<AdminStats> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/stats`, { headers: authHeaders() }));
 }
 
+export interface RateLimits { limit_quick_anon: string; limit_debate_anon: string; limit_debate_user: string; }
+
+export async function fetchAdminSettings(): Promise<RateLimits> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/settings`, { headers: authHeaders() }));
+}
+
+export async function updateAdminSettings(body: RateLimits): Promise<RateLimits> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/admin/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    })
+  );
+}
+
 export async function fetchAdminPaths(): Promise<SessionPath[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/paths`, { headers: authHeaders() }));
 }

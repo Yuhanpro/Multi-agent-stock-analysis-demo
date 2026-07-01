@@ -12,7 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.config import get_settings
 from app.services import auth, budget, events, reports
 from app.services.funds import Fund, get_fund, search_funds
-from app.services.rate_limit import check_and_count
+from app.services.rate_limit import enforce_scope
 from app.services.skill_runner import sse_event, stream_fund_review
 
 log = logging.getLogger(__name__)
@@ -60,9 +60,9 @@ async def fund_analyze(request: Request, req: FundAnalyzeRequest) -> EventSource
     if not fund_obj.nav and not fund_obj.holdings:
         raise HTTPException(status_code=400, detail="基金数据为空,无法分析")
 
-    check_and_count(request, scope="quick", limit=settings.rate_limit_quick)
-    budget.assert_within_budget()
     user = auth.user_from_request(request)
+    enforce_scope(request, "quick", user)  # signed-in unlimited; anon capped
+    budget.assert_within_budget()
 
     async def event_gen():
         chunks: list[str] = []

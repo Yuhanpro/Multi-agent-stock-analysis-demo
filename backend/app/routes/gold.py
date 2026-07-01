@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import budget, events, gold as gold_svc
-from app.services.rate_limit import check_and_count
+from app.services import auth, budget, events, gold as gold_svc
+from app.services.rate_limit import enforce_scope
 from app.services.skill_runner import sse_event, stream_gold_chat, stream_gold_review
 
 log = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class GoldReviewRequest(BaseModel):
 @router.post("/gold-review")
 async def gold_review(request: Request, req: GoldReviewRequest) -> EventSourceResponse:
     settings = get_settings()
-    check_and_count(request, scope="quick", limit=settings.rate_limit_quick)
+    enforce_scope(request, "quick", auth.user_from_request(request))
     budget.assert_within_budget()
 
     gold = await asyncio.to_thread(gold_svc.get_gold)
@@ -72,7 +72,7 @@ class GoldChatRequest(BaseModel):
 @router.post("/gold-chat")
 async def gold_chat(request: Request, req: GoldChatRequest) -> EventSourceResponse:
     settings = get_settings()
-    check_and_count(request, scope="quick", limit=settings.rate_limit_quick)
+    enforce_scope(request, "quick", auth.user_from_request(request))
     budget.assert_within_budget()
     gold = await asyncio.to_thread(gold_svc.get_gold)
 

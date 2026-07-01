@@ -14,9 +14,9 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
-from app.services import budget, events
+from app.services import auth, budget, events
 from app.services.market_data import get_snapshot
-from app.services.rate_limit import check_and_count
+from app.services.rate_limit import enforce_scope
 from app.services.skill_runner import sse_event, stream_followup
 
 log = logging.getLogger(__name__)
@@ -54,8 +54,8 @@ async def chat(request: Request, req: ChatRequest) -> EventSourceResponse:
         log.exception("snapshot pre-fetch failed for %s/%s", req.ticker, req.market)
         raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
 
-    # Each follow-up is a real LLM call — count it against the per-IP quota.
-    check_and_count(request, scope="quick", limit=settings.rate_limit_quick)
+    # Signed-in users are unlimited on quick-scope; anonymous keep the anon cap.
+    enforce_scope(request, "quick", auth.user_from_request(request))
     budget.assert_within_budget()
 
     async def event_gen():

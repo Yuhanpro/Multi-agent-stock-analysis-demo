@@ -12,7 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.config import get_settings
 from app.services import auth, budget, events, reports
 from app.services.market_data import get_snapshot
-from app.services.rate_limit import check_and_count
+from app.services.rate_limit import enforce_scope
 from app.services.tradingagents_runner import sse_event, stream_debate
 
 log = logging.getLogger(__name__)
@@ -70,12 +70,11 @@ async def debate(request: Request, req: DebateRequest) -> EventSourceResponse:
         log.exception("snapshot pre-fetch failed for %s/%s", req.ticker, req.market)
         raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
 
-    # Real request — count against per-IP quota and budget.
-    check_and_count(request, scope="debate", limit=settings.rate_limit_debate)
-    budget.assert_within_budget()
-
-    # Logged-in users get the debate persisted to history (best-effort).
+    # Debate is capped per account for signed-in users (admin-editable), per IP
+    # for anonymous — resolve the user first so the right cap applies.
     user = auth.user_from_request(request)
+    enforce_scope(request, "debate", user)
+    budget.assert_within_budget()
 
     async def event_gen():
         # Push the snapshot first so the frontend can render the chart while

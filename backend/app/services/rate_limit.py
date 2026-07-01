@@ -133,19 +133,35 @@ def _client_ip(request: Request) -> str:
     return request.client.host
 
 
-def check_and_count(request: Request, scope: str, limit: str) -> None:
-    """Raise HTTP 429 when the (scope, IP) bucket is full. Otherwise count
-    this request as one hit."""
+def check_and_count(request: Request, scope: str, limit: str, subject: str | None = None) -> None:
+    """Raise HTTP 429 when the (scope, subject) bucket is full. `subject`
+    defaults to the client IP; pass e.g. "u<id>" to make the cap per-account."""
     parsed = _parse(limit)
-    ip = _client_ip(request)
-    key = f"{scope}:{ip}"
+    subj = subject or _client_ip(request)
+    key = f"{scope}:{subj}"
     allowed, remaining = _get_backend().hit(key, parsed.count, parsed.period_sec)
     if not allowed:
         raise HTTPException(
             status_code=429,
-            detail=(
-                f"rate limit exceeded for {scope}: {limit} (per IP). "
-                "Try again later."
-            ),
+            detail=f"rate limit exceeded for {scope}: {limit}. Try again later.",
         )
-    log.debug("rate_limit ok: %s ip=%s remaining=%d", scope, ip, remaining)
+    log.debug("rate_limit ok: %s subj=%s remaining=%d", scope, subj, remaining)
+
+
+def enforce_scope(request: Request, scope: str, user) -> None:
+    """Apply the right cap for this request. Signed-in users get unlimited
+    quick-scope analyses (速评/Serenity/追问/基金/黄金); debate is capped per
+    account by an admin-editable limit. Anonymous users use the anon caps."""
+    from app.services import app_settings
+
+    if scope == "quick":
+        if user is None:  # signed-in → no cap
+            check_and_count(request, "quick", app_settings.get("limit_quick_anon"))
+    elif scope == "debate":
+        if user is None:
+            check_and_count(request, "debate", app_settings.get("limit_debate_anon"))
+        else:
+            check_and_count(request, "debate", app_settings.get("limit_debate_user"),
+                            subject=f"u{user.id}")
+    else:
+        raise ValueError(f"enforce_scope: unknown scope {scope!r}")

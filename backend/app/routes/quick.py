@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.services import auth, budget, events, reports
 from app.services.financials import get_financials
 from app.services.market_data import get_snapshot
-from app.services.rate_limit import check_and_count
+from app.services.rate_limit import enforce_scope
 from app.services.skill_runner import sse_event, stream_quick
 
 log = logging.getLogger(__name__)
@@ -48,8 +48,9 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
         log.exception("snapshot pre-fetch failed for %s/%s", req.ticker, req.market)
         raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
 
-    # Real request — count it against the per-IP quota.
-    check_and_count(request, scope="quick", limit=settings.rate_limit_quick)
+    # Signed-in users are unlimited on quick-scope; anonymous keep the anon cap.
+    user = auth.user_from_request(request)
+    enforce_scope(request, "quick", user)
 
     # Budget gate — cheaper than starting the SSE stream and aborting.
     budget.assert_within_budget()
@@ -61,9 +62,6 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
         financials = await asyncio.to_thread(get_financials, req.ticker, req.market)
     except Exception:
         log.warning("financials fetch failed for %s/%s", req.ticker, req.market)
-
-    # Logged-in users get their run persisted to history (best-effort).
-    user = auth.user_from_request(request)
 
     async def event_gen():
         # Send the snapshot up front so the frontend can render the chart

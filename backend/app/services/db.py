@@ -137,6 +137,12 @@ CREATE TABLE IF NOT EXISTS runs (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at);
+
+-- Admin-editable key/value settings (rate limits, etc.).
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 

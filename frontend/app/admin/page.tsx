@@ -6,8 +6,9 @@ import {
 } from "recharts";
 import { Check, Copy, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
-  createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminStats, fetchInvites, revokeInvite,
-  type AdminStats, type Feedback, type InviteCode, type ModeCount, type SessionPath,
+  createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminSettings, fetchAdminStats, fetchInvites,
+  revokeInvite, updateAdminSettings,
+  type AdminStats, type Feedback, type InviteCode, type ModeCount, type RateLimits, type SessionPath,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
@@ -369,10 +370,55 @@ function Usage({ stats, zh }: { stats: AdminStats; zh: boolean }) {
   );
 }
 
+function RateLimitSettings() {
+  const { t } = useT();
+  const [s, setS] = useState<RateLimits | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { fetchAdminSettings().then(setS).catch(() => {}); }, []);
+  if (!s) return null;
+  const field = (key: keyof RateLimits, accent?: boolean) => (
+    <label className="flex flex-col gap-1">
+      <span className={accent ? "text-accent" : "text-muted"}>{t(`admin.rl.${key}` as never)}</span>
+      <input
+        value={s[key]}
+        onChange={(e) => setS({ ...s, [key]: e.target.value })}
+        placeholder="5/hour"
+        className="w-28 rounded-md border border-border bg-input px-2 py-1 text-sm tabular-nums text-heading focus:border-accent focus:outline-none"
+      />
+    </label>
+  );
+  async function save() {
+    if (!s) return;
+    setSaving(true); setMsg(null);
+    try { setS(await updateAdminSettings(s)); setMsg(t("admin.rl.saved")); }
+    catch (e) { setMsg((e as Error).message); }
+    setSaving(false);
+  }
+  return (
+    <div className="mb-4 rounded-xl border border-border bg-surface p-4">
+      <div className="text-sm font-semibold text-heading">{t("admin.rl.title")}</div>
+      <p className="mb-3 mt-0.5 text-[11px] leading-4 text-muted">{t("admin.rl.hint")}</p>
+      <div className="flex flex-wrap items-end gap-4 text-xs">
+        {field("limit_quick_anon")}
+        {field("limit_debate_anon")}
+        {field("limit_debate_user", true)}
+        <button onClick={save} disabled={saving}
+          className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent/85 disabled:opacity-50">
+          {t("admin.rl.save")}
+        </button>
+        {msg && <span className="text-[11px] text-muted">{msg}</span>}
+      </div>
+      <p className="mt-2 text-[11px] text-muted/70">{t("admin.rl.note")}</p>
+    </div>
+  );
+}
+
 function Invites({ stats, invites, setInvites }: { stats: AdminStats | null; invites: InviteCode[]; setInvites: (f: (x: InviteCode[]) => InviteCode[]) => void }) {
   const { t } = useT();
   return (
     <div>
+      <RateLimitSettings />
       {stats && (
         <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted">
           <span>{t("admin.invTotal")} <b className="text-heading">{stats.invites_total}</b></span>
