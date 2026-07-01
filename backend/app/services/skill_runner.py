@@ -563,6 +563,19 @@ def _format_gold_for_prompt(gold) -> str:
                 f"近5日 {pct(_pct_over(s.history, 5))} · 近20日 {pct(_pct_over(s.history, 20))}")
 
     parts = ["## 黄金数据(截至最新)", line(gold.domestic), line(gold.intl)]
+
+    def tech_line(s):
+        tk = getattr(s, "tech", None)
+        if not tk:
+            return None
+        m = f"{tk.mom20*100:+.1f}%" if tk.mom20 is not None else "n/a"
+        return (f"- {s.name}技术面(仅客观状态,非信号):趋势{tk.trend} · RSI {tk.rsi}({tk.rsi_state}) · "
+                f"MACD {tk.macd_state} · 布林{tk.boll_pos} · 20日动量 {m} · 综合{tk.summary}(5项中{tk.bull}项偏多)")
+
+    for s in (gold.domestic, gold.intl):
+        tl = tech_line(s)
+        if tl:
+            parts.append(tl)
     if getattr(gold, "premium", None) is not None:
         tag = "溢价" if gold.premium >= 0 else "贴水"
         parts.append(

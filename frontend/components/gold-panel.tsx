@@ -72,6 +72,27 @@ export function GoldPanel({ lang }: { lang: Lang }) {
         </p>
       )}
 
+      {series.tech && (
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-heading">{t("gold.tech")}</span>
+            <span className={cn("rounded-full border px-2 py-0.5 text-[10px]",
+              series.tech.summary === "偏强" ? "border-bull/50 text-bull" : series.tech.summary === "偏弱" ? "border-bear/50 text-bear" : "border-border text-muted")}>
+              {series.tech.summary}
+            </span>
+            <span className="text-[11px] text-muted">{series.tech.bull}/5 {t("gold.techBull")}</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <TChip label={t("gold.tTrend")} v={series.tech.trend} />
+            <TChip label="RSI" v={`${series.tech.rsi} · ${series.tech.rsi_state}`} />
+            <TChip label="MACD" v={series.tech.macd_state} />
+            <TChip label={t("gold.tBoll")} v={series.tech.boll_pos} />
+            <TChip label={t("gold.tMom")} v={series.tech.mom20 != null ? fmtPct(series.tech.mom20) : "—"} />
+          </div>
+          <p className="mt-2 text-[11px] text-muted/60">{t("gold.techNote")}</p>
+        </div>
+      )}
+
       <div className="rounded-xl border border-border bg-surface p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-sm font-semibold text-heading">{series.name}</span>
@@ -119,6 +140,15 @@ export function GoldPanel({ lang }: { lang: Lang }) {
 
       {reviewOn > 0 && <GoldReview nonce={reviewOn} language={lang} />}
     </div>
+  );
+}
+
+function TChip({ label, v }: { label: string; v: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg/40 px-2.5 py-1">
+      <span className="text-muted">{label}</span>
+      <span className="font-medium text-body">{v}</span>
+    </span>
   );
 }
 

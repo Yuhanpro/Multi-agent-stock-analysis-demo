@@ -344,10 +344,16 @@ export interface GoldPoint {
   close: number | null;
 }
 export interface IntradayPoint { time: string; price: number | null; }
+export interface GoldTech {
+  ma20: number | null; ma60: number | null; trend: string;
+  rsi: number | null; rsi_state: string; macd_state: string; boll_pos: string;
+  mom20: number | null; atr_pct: number | null; bull: number; summary: string;
+}
 export interface GoldSeries {
   name: string; unit: string; price: number | null; change_pct: number | null;
   history: GoldPoint[];
   intraday: IntradayPoint[];
+  tech: GoldTech | null;
 }
 export interface GoldData {
   domestic: GoldSeries;
