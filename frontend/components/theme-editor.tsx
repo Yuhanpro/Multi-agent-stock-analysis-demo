@@ -60,7 +60,7 @@ export function ThemeEditor() {
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
                 <div className="text-sm font-semibold text-heading">本地主题编辑器</div>
-                <div className="text-[11px] text-subtle">只保存在当前浏览器,不影响其他访客</div>
+                <div className="text-[11px] text-subtle">只保存在当前浏览器，不影响其他访客</div>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="text-muted hover:text-heading">
                 <X className="h-4 w-4" />

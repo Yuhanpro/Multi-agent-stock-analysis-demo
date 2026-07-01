@@ -23,7 +23,7 @@ function yi(v: number | null): string {
 }
 
 // Color by local market convention. bull=green, bear=red.
-// A股:红涨绿跌(涨→bear/红,跌→bull/绿)。美股/港股:绿涨红跌(默认)。
+// A股:红涨绿跌(涨→bear/红，跌→bull/绿)。美股/港股:绿涨红跌(默认)。
 function tone(v: number | null, market: Market): string {
   if (v == null) return "text-muted";
   const up = v >= 0;
