@@ -132,10 +132,10 @@ function wsum(daily: AdminStats["daily"], field: keyof AdminStats["daily"][numbe
 
 function periodMetrics(stats: AdminStats, period: Period) {
   const d = stats.daily;
-  const F = ["views", "visitors", "analyses", "runs", "signups", "cost"] as const;
+  const F = ["views", "visitors", "analyses", "runs", "runs_signed", "runs_anon", "signups", "cost"] as const;
   if (period === "total") {
     return {
-      m: { views: stats.total_views, visitors: stats.total_visitors, analyses: stats.analyses_total, runs: stats.runs_total, signups: stats.total_users, cost: stats.cost_total },
+      m: { views: stats.total_views, visitors: stats.total_visitors, analyses: stats.analyses_total, runs: stats.runs_total, runs_signed: stats.runs_signed_total, runs_anon: stats.runs_anon_total, signups: stats.total_users, cost: stats.cost_total },
       delta: {} as Record<string, number | null>, hasDelta: false,
     };
   }
@@ -196,14 +196,15 @@ function Overview({ stats }: { stats: AdminStats }) {
 
       <Section title={t("admin.sec.usage")} hint={t("admin.usageHint")}>
         <Kpi label={t("admin.analyses")} value={m.analyses} delta={delta.analyses} />
-        <Kpi label={t("admin.reports")} value={period === "total" ? stats.runs_total : m.runs} delta={delta.runs} />
+        <Kpi label={t("admin.signedRuns")} value={m.runs_signed} delta={delta.runs_signed} />
+        <Kpi label={t("admin.anonRuns")} value={m.runs_anon} delta={delta.runs_anon} />
         <Kpi label={t("admin.topTicker")} value={topT ? topT.ticker : "—"} note={topT ? `${topT.count} ${t("ov.analyzed")}` : ""} />
       </Section>
       {stats.clicks_by_mode.length > 0 && <ModeBar title={t("admin.byModeAll")} items={stats.clicks_by_mode} zh={zh} />}
 
       <Section title={t("admin.sec.cost")} hint={t("admin.costHint")}>
         <Kpi label={t("admin.cost")} value={money(m.cost)} delta={delta.cost} deltaNeutral />
-        <Kpi label={t("admin.costPerRun")} value={`$${per(m.cost, m.runs).toFixed(4)}`} />
+        <Kpi label={t("admin.costPerRun")} value={`$${per(m.cost, m.runs_signed + m.runs_anon).toFixed(4)}`} />
         <Kpi label={t("admin.costPerUser")} value={`$${per(stats.cost_total, stats.total_users).toFixed(3)}`} />
       </Section>
 
@@ -271,11 +272,12 @@ function PeriodTable({ stats }: { stats: AdminStats }) {
   const win = (n: number, key: keyof (typeof d)[number]) => d.slice(0, n).reduce((a, x) => a + (Number(x[key]) || 0), 0);
   const at = (i: number, key: keyof (typeof d)[number]) => Number(d[i]?.[key] ?? 0);
   const money = (v: number) => `$${v.toFixed(3)}`;
-  const rows: { label: string; key: "views" | "visitors" | "analyses" | "runs" | "signups" | "cost"; total: number; fmt?: (v: number) => string }[] = [
+  const rows: { label: string; key: "views" | "visitors" | "analyses" | "runs_signed" | "runs_anon" | "signups" | "cost"; total: number; fmt?: (v: number) => string }[] = [
     { label: t("admin.views"), key: "views", total: stats.total_views },
     { label: t("admin.visitors"), key: "visitors", total: stats.total_visitors },
     { label: t("admin.analyses"), key: "analyses", total: stats.analyses_total },
-    { label: t("admin.reports"), key: "runs", total: stats.runs_total },
+    { label: t("admin.signedRuns"), key: "runs_signed", total: stats.runs_signed_total },
+    { label: t("admin.anonRuns"), key: "runs_anon", total: stats.runs_anon_total },
     { label: t("admin.signups"), key: "signups", total: stats.total_users },
     { label: t("admin.cost"), key: "cost", total: stats.cost_total || 0, fmt: money },
   ];

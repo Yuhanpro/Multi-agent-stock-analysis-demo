@@ -20,8 +20,10 @@ class DailyPoint(BaseModel):
     date: str
     views: int = 0
     visitors: int = 0
-    analyses: int = 0   # all-user analysis starts (run:% events)
-    runs: int = 0       # saved reports (signed-in only)
+    analyses: int = 0       # all-user analysis starts (run:% events)
+    runs: int = 0           # saved reports (signed-in only)
+    runs_signed: int = 0    # completed analyses (runs table) by signed-in users
+    runs_anon: int = 0      # completed analyses (runs table) by anonymous users
     signups: int = 0
     cost: float = 0.0
 
@@ -64,8 +66,10 @@ class Stats(BaseModel):
     top_paths: list[PathHit] = []
     daily: list[DailyPoint] = []
     # usage
-    analyses_total: int = 0   # all-user analysis starts (run:% events)
-    runs_total: int = 0       # saved reports (signed-in only)
+    analyses_total: int = 0       # all-user analysis starts (run:% events)
+    runs_total: int = 0           # saved reports (signed-in only)
+    runs_signed_total: int = 0    # completed analyses (runs) by signed-in users
+    runs_anon_total: int = 0      # completed analyses (runs) by anonymous users
     cost_total: float = 0.0
     runs_by_mode: list[ModeCount] = []
     top_tickers: list[TickerHit] = []
@@ -154,6 +158,11 @@ def get_stats() -> Stats:
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM reports GROUP BY d")}
     rc = {r["d"]: r["cost"] for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COALESCE(SUM(cost_usd),0) AS cost FROM runs GROUP BY d")}
+    # Completed analyses split by login (runs.user_id: real user vs anonymous).
+    rs = {r["d"]: r["c"] for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM runs WHERE user_id IS NOT NULL GROUP BY d")}
+    ra = {r["d"]: r["c"] for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM runs WHERE user_id IS NULL GROUP BY d")}
     an = {r["d"]: r["c"] for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM events WHERE path LIKE 'run:%' GROUP BY d")}
     su = {r["d"]: r["c"] for r in db.query_all(
@@ -163,7 +172,8 @@ def get_stats() -> Stats:
             date=d,
             views=ev.get(d, (0, 0))[0], visitors=ev.get(d, (0, 0))[1],
             analyses=an.get(d, 0),
-            runs=rp.get(d, 0), cost=round(float(rc.get(d, 0) or 0), 4),
+            runs=rp.get(d, 0), runs_signed=rs.get(d, 0), runs_anon=ra.get(d, 0),
+            cost=round(float(rc.get(d, 0) or 0), 4),
             signups=su.get(d, 0),
         )
         for d in day_list
@@ -171,6 +181,8 @@ def get_stats() -> Stats:
     # All-user analysis starts (run:% events) vs saved reports (signed-in only).
     s.analyses_total = _scalar("SELECT COUNT(*) FROM events WHERE path LIKE 'run:%'")
     s.runs_total = _scalar("SELECT COUNT(*) FROM reports")
+    s.runs_signed_total = _scalar("SELECT COUNT(*) FROM runs WHERE user_id IS NOT NULL")
+    s.runs_anon_total = _scalar("SELECT COUNT(*) FROM runs WHERE user_id IS NULL")
     # Cost / modes / tickers from the runs table = ALL users (anon + signed-in),
     # the true picture. (reports only ever captured signed-in users.)
     cost_row = db.query_one("SELECT COALESCE(SUM(cost_usd), 0) AS c FROM runs")
