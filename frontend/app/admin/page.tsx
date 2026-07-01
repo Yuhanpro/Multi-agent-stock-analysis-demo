@@ -21,16 +21,18 @@ export default function AdminPage() {
   const { t } = useT();
   const { user, loading } = useAuth();
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <h1 className="text-2xl font-semibold tracking-tight text-heading">{t("admin.title")}</h1>
-      {loading ? null : !user ? (
-        <LoginPrompt />
-      ) : !user.is_admin ? (
-        <p className="mt-6 rounded-lg border border-border/70 bg-surface/40 px-5 py-8 text-center text-sm text-muted">403 · admin only</p>
-      ) : (
-        <Dashboard />
-      )}
-    </main>
+    <div className="admin-light min-h-screen bg-[hsl(var(--theme-bg))] text-body">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+        <h1 className="text-2xl font-semibold tracking-tight text-heading">{t("admin.title")}</h1>
+        {loading ? null : !user ? (
+          <LoginPrompt />
+        ) : !user.is_admin ? (
+          <p className="mt-6 rounded-lg border border-border/70 bg-surface/40 px-5 py-8 text-center text-sm text-muted">403 · admin only</p>
+        ) : (
+          <Dashboard />
+        )}
+      </main>
+    </div>
   );
 }
 
@@ -235,9 +237,9 @@ function Delta({ v, neutral }: { v: number; neutral?: boolean }) {
   );
 }
 
-// Monochromatic blue ramp (bright→pale) derived from the brand palette. The
-// darkest shades (#030c30/#061860) are dropped — they vanish on the navy bg.
-const MODE_COLORS = ["#0e3bf1", "#2850f2", "#3f62f3", "#5776f5", "#6f89f6", "#879df7", "#9fb1f9", "#b8c5fb"];
+// Monochromatic blue ramp (deep→pale) from the brand palette — now on a light
+// dashboard surface, so the deep blues read strongly.
+const MODE_COLORS = ["#092390", "#0c2fc0", "#0e3bf1", "#3f62f3", "#5776f5", "#6f89f6", "#879df7", "#9fb1f9"];
 
 function ModeBar({ title, items, zh }: { title: string; items: ModeCount[]; zh: boolean }) {
   const sorted = [...items].sort((a, b) => b.count - a.count);

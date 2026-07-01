@@ -28,6 +28,27 @@
   --theme-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
 }
 
+/* Light BI dashboard scope — overrides the theme tokens for descendants so the
+   full brand-blue ramp (incl. the dark shades) shows on a light surface. */
+.admin-light {
+  --theme-bg: 220 24% 97%;
+  --theme-surface: 0 0% 100%;
+  --theme-elevated: 0 0% 100%;
+  --theme-input: 220 24% 98%;
+  --theme-border: 220 16% 88%;
+  --theme-border-strong: 220 18% 76%;
+  --theme-heading: 222 47% 16%;
+  --theme-body: 220 18% 30%;
+  --theme-muted: 220 12% 46%;
+  --theme-subtle: 220 10% 60%;
+  --theme-fg: 220 18% 30%;
+  --theme-accent: 227 90% 50%;
+  --theme-bull: 151 55% 38%;
+  --theme-bear: 350 66% 48%;
+  --theme-chart-grid: 220 16% 90%;
+  --theme-chart-tooltip: 0 0% 100%;
+}
+
 html, body {
   background: hsl(var(--theme-bg));
   color: hsl(var(--theme-body));
