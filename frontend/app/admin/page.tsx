@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis,
 } from "recharts";
@@ -104,23 +104,59 @@ function Dashboard() {
 
 // ---------- tabs ------------------------------------------------------------
 
-function Overview({ stats }: { stats: AdminStats }) {
-  const { t } = useT();
-  const perVisitor = stats.total_visitors ? Math.round((stats.total_views / stats.total_visitors) * 10) / 10 : 0;
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label={t("admin.views")} value={stats.total_views} sub={`${stats.today_views} ${t("admin.today")}`} />
-        <StatCard label={t("admin.visitors")} value={stats.total_visitors} sub={`${stats.today_visitors} ${t("admin.today")}`} />
+    <div>
+      <div className="mb-2 flex items-baseline gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
+        {hint && <span className="text-[11px] text-muted/60">{hint}</span>}
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{children}</div>
+    </div>
+  );
+}
+
+function Overview({ stats }: { stats: AdminStats }) {
+  const { t, lang } = useT();
+  const zh = lang === "zh";
+  const d0 = stats.daily[0] ?? { views: 0, visitors: 0, runs: 0, cost: 0, signups: 0 };
+  const perVisitor = stats.total_visitors ? Math.round((stats.total_views / stats.total_visitors) * 10) / 10 : 0;
+  const conv = stats.total_visitors ? (stats.total_users / stats.total_visitors) * 100 : 0;
+  const costPerRun = stats.runs_total ? stats.cost_total / stats.runs_total : 0;
+  const costPerUser = stats.total_users ? stats.cost_total / stats.total_users : 0;
+  const clicksTotal = stats.clicks_by_mode.reduce((a, m) => a + m.count, 0);
+  const topT = stats.top_tickers[0];
+  return (
+    <div className="space-y-5">
+      <Section title={t("admin.sec.traffic")}>
+        <StatCard label={t("admin.views")} value={stats.total_views} sub={`${d0.views} ${t("admin.today")}`} />
+        <StatCard label={t("admin.visitors")} value={stats.total_visitors} sub={`${d0.visitors} ${t("admin.today")}`} />
         <StatCard label={t("admin.perVisitor")} value={perVisitor} />
+        <StatCard label={`${t("admin.new")}·${t("admin.today")}`} value={stats.new_today} tone="bull" />
+        <StatCard label={`${t("admin.returning")}·${t("admin.today")}`} value={stats.returning_today} tone="accent" />
+      </Section>
+
+      <Section title={t("admin.sec.users")}>
         <StatCard label={t("admin.users")} value={stats.total_users} />
-        <StatCard label={t("admin.runs")} value={stats.runs_total} />
-        <StatCard label={t("admin.cost")} value={`$${(stats.cost_total || 0).toFixed(3)}`} />
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label={`${t("admin.new")} (${t("admin.today")})`} value={stats.new_today} tone="bull" />
-        <StatCard label={`${t("admin.returning")} (${t("admin.today")})`} value={stats.returning_today} tone="accent" />
-      </div>
+        <StatCard label={`${t("admin.signups")}·${t("admin.today")}`} value={d0.signups} tone="bull" />
+        <StatCard label={t("admin.conv")} value={`${conv.toFixed(1)}%`} />
+        <StatCard label={t("admin.invUsed")} value={`${stats.invites_used}/${stats.invites_total}`} sub={`${stats.invites_active} ${t("admin.invActive")}`} />
+      </Section>
+
+      <Section title={t("admin.sec.usage")}>
+        <StatCard label={t("admin.runs")} value={stats.runs_total} sub={`${d0.runs} ${t("admin.today")}`} />
+        <StatCard label={t("admin.clicks")} value={clicksTotal} />
+        <StatCard label={t("admin.doneRate")} value={clicksTotal ? `${Math.round((stats.runs_total / clicksTotal) * 100)}%` : "—"} />
+        <StatCard label={t("admin.topTicker")} value={topT ? topT.ticker : "—"} sub={topT ? `${topT.count} ${t("ov.analyzed")}` : ""} />
+      </Section>
+      {stats.runs_by_mode.length > 0 && <Chips title={t("admin.byMode")} items={stats.runs_by_mode} zh={zh} />}
+
+      <Section title={t("admin.sec.cost")} hint={t("admin.costHint")}>
+        <StatCard label={t("admin.cost")} value={`$${(stats.cost_total || 0).toFixed(3)}`} sub={`$${(d0.cost || 0).toFixed(3)} ${t("admin.today")}`} />
+        <StatCard label={t("admin.costPerRun")} value={`$${costPerRun.toFixed(4)}`} />
+        <StatCard label={t("admin.costPerUser")} value={`$${costPerUser.toFixed(3)}`} />
+      </Section>
+
       <PeriodTable stats={stats} />
       <TrendChart stats={stats} />
     </div>
@@ -133,8 +169,9 @@ function PeriodTable({ stats }: { stats: AdminStats }) {
   const win = (n: number, key: keyof (typeof d)[number]) => d.slice(0, n).reduce((a, x) => a + (Number(x[key]) || 0), 0);
   const at = (i: number, key: keyof (typeof d)[number]) => Number(d[i]?.[key] ?? 0);
   const money = (v: number) => `$${v.toFixed(3)}`;
-  const rows: { label: string; key: "views" | "runs" | "signups" | "cost"; total: number; fmt?: (v: number) => string }[] = [
+  const rows: { label: string; key: "views" | "visitors" | "runs" | "signups" | "cost"; total: number; fmt?: (v: number) => string }[] = [
     { label: t("admin.views"), key: "views", total: stats.total_views },
+    { label: t("admin.visitors"), key: "visitors", total: stats.total_visitors },
     { label: t("admin.runs"), key: "runs", total: stats.runs_total },
     { label: t("admin.signups"), key: "signups", total: stats.total_users },
     { label: t("admin.cost"), key: "cost", total: stats.cost_total || 0, fmt: money },
