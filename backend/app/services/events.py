@@ -17,7 +17,8 @@ class DailyPoint(BaseModel):
     date: str
     views: int = 0
     visitors: int = 0
-    runs: int = 0
+    analyses: int = 0   # all-user analysis starts (run:% events)
+    runs: int = 0       # saved reports (signed-in only)
     signups: int = 0
     cost: float = 0.0
 
@@ -60,7 +61,8 @@ class Stats(BaseModel):
     top_paths: list[PathHit] = []
     daily: list[DailyPoint] = []
     # usage
-    runs_total: int = 0
+    analyses_total: int = 0   # all-user analysis starts (run:% events)
+    runs_total: int = 0       # saved reports (signed-in only)
     cost_total: float = 0.0
     runs_by_mode: list[ModeCount] = []
     top_tickers: list[TickerHit] = []
@@ -127,18 +129,22 @@ def get_stats() -> Stats:
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS v, COUNT(DISTINCT anon_id) AS u FROM events GROUP BY d")}
     rp = {r["d"]: (r["c"], r["cost"]) for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c, COALESCE(SUM(cost_usd),0) AS cost FROM reports GROUP BY d")}
+    an = {r["d"]: r["c"] for r in db.query_all(
+        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM events WHERE path LIKE 'run:%' GROUP BY d")}
     su = {r["d"]: r["c"] for r in db.query_all(
         "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d")}
     s.daily = [
         DailyPoint(
             date=d,
             views=ev.get(d, (0, 0))[0], visitors=ev.get(d, (0, 0))[1],
+            analyses=an.get(d, 0),
             runs=rp.get(d, (0, 0))[0], cost=round(float(rp.get(d, (0, 0))[1] or 0), 4),
             signups=su.get(d, 0),
         )
         for d in day_list
     ]
-    # Usage from saved reports (analysis runs + LLM spend).
+    # All-user analysis starts (run:% events) vs saved reports (signed-in only).
+    s.analyses_total = _scalar("SELECT COUNT(*) FROM events WHERE path LIKE 'run:%'")
     s.runs_total = _scalar("SELECT COUNT(*) FROM reports")
     cost_row = db.query_one("SELECT COALESCE(SUM(cost_usd), 0) AS c FROM reports")
     s.cost_total = round(float(cost_row["c"] or 0), 4) if cost_row else 0.0
