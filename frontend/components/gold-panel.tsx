@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { fetchGold, type GoldData, type GoldPoint, type GoldSeries } from "@/lib/api";
 import { CandleChart, type Candle } from "@/components/candle-chart";
+import { GoldChat } from "@/components/gold-chat";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
@@ -157,19 +158,22 @@ function GoldReview({ nonce, language }: { nonce: number; language: Lang }) {
   }, [nonce, language]);
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        {done ? <CheckCircle2 className="h-4 w-4 text-bull" /> : error ? null : <Loader2 className="h-4 w-4 animate-spin text-accent" />}
-        {t("gold.review")}
+    <>
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+          {done ? <CheckCircle2 className="h-4 w-4 text-bull" /> : error ? null : <Loader2 className="h-4 w-4 animate-spin text-accent" />}
+          {t("gold.review")}
+        </div>
+        {error ? (
+          <div className="text-sm text-bear">{error}</div>
+        ) : text ? (
+          <div className="prose-tight max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("gold.reviewing")}</div>
+        )}
       </div>
-      {error ? (
-        <div className="text-sm text-bear">{error}</div>
-      ) : text ? (
-        <div className="prose-tight max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
-      ) : (
-        <div className="flex items-center gap-2 text-sm text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("gold.reviewing")}</div>
-      )}
-    </div>
+      {done && text && !error && <GoldChat report={text} language={language} />}
+    </>
   );
 }
 

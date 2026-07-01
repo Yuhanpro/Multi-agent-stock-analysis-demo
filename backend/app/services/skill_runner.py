@@ -634,6 +634,77 @@ async def stream_gold_review(*, gold, model: str | None = None, language: str = 
     }
 
 
+_GOLD_CHAT_SYSTEM = """你是一位专业的黄金市场分析助手,正在就黄金与用户进行多轮追问。你此前已为用户生成过一份黄金复盘(见下方上下文),现在用户会基于复盘或黄金数据继续提问。
+
+回答原则:
+- 直接聚焦当前问题,不要重复整篇复盘。
+- 只依据上下文的黄金价格数据(国内金、国际金、内外价差、ETF持仓)与复盘事实作答;宏观驱动(美元、实际利率、避险、央行购金等)可作背景逻辑,但要说明它不是当日实证,**不要编造具体新闻或未提供的数字**。
+- 不构成投资建议。用与提问相同的语言,简洁(2–5 段或要点)。"""
+
+
+async def stream_gold_chat(
+    *, gold, report: str | None, history: list[dict], question: str,
+    model: str | None = None, language: str = "zh",
+) -> AsyncIterator[tuple[str, dict]]:
+    """Multi-turn follow-up chat about gold, grounded in the gold data + the recap."""
+    settings = get_settings()
+    if not settings.deepseek_api_key:
+        yield "error", {"message": "DEEPSEEK_API_KEY not configured on server"}
+        return
+    model = model or settings.quick_think_llm
+
+    sys = _GOLD_CHAT_SYSTEM
+    sys += "\n\n**用简体中文回答。**" if (language or "zh").lower().startswith("zh") else "\n\n**Answer in English.**"
+    context = _format_gold_for_prompt(gold)
+    if report and report.strip():
+        context += "\n\n## 此前生成的黄金复盘(供引用,勿照抄)\n\n" + report.strip()[-8000:]
+
+    messages: list[dict] = [{"role": "system", "content": sys + "\n\n" + context}]
+    for turn in (history or [])[-10:]:
+        role = turn.get("role")
+        content = (turn.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": (question or "").strip()})
+
+    yield "meta", {"model": model, "skill": "gold-chat"}
+    client = AsyncOpenAI(api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url,
+                         http_client=httpx.AsyncClient(trust_env=False))
+    usage = None
+    stop_reason = None
+    try:
+        stream = await client.chat.completions.create(
+            model=model, messages=messages, max_tokens=1536, stream=True,
+            stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            if chunk.usage is not None:
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.delta and choice.delta.content:
+                yield "token", {"text": choice.delta.content}
+            if choice.finish_reason:
+                stop_reason = choice.finish_reason
+    except Exception as e:
+        log.exception("gold chat stream failed")
+        yield "error", {"message": f"upstream error: {e}"}
+        return
+
+    in_tok = usage.prompt_tokens if usage else 0
+    out_tok = usage.completion_tokens if usage else 0
+    cached = 0
+    if usage is not None:
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+    yield "done", {
+        "input_tokens": in_tok, "output_tokens": out_tok, "cached_input_tokens": cached,
+        "cost_usd": round(estimate_cost_usd(model, in_tok, out_tok, cached), 6),
+        "stop_reason": stop_reason or "stop",
+    }
+
+
 def sse_event(event: str, data: dict) -> dict:
     """Shape expected by sse_starlette.EventSourceResponse.
 

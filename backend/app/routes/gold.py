@@ -6,13 +6,13 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
 from app.services import budget, gold as gold_svc
 from app.services.rate_limit import check_and_count
-from app.services.skill_runner import sse_event, stream_gold_review
+from app.services.skill_runner import sse_event, stream_gold_chat, stream_gold_review
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +50,42 @@ async def gold_review(request: Request, req: GoldReviewRequest) -> EventSourceRe
                 yield sse_event(name, payload)
         except Exception as e:
             log.exception("gold review stream failed")
+            yield sse_event("error", {"message": str(e)})
+
+    return EventSourceResponse(event_gen())
+
+
+class GoldChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=8000)
+
+
+class GoldChatRequest(BaseModel):
+    report: str | None = Field(None, max_length=20000)
+    history: list[GoldChatTurn] = Field(default_factory=list)
+    question: str = Field(..., min_length=1, max_length=2000)
+    language: Literal["en", "zh"] = "zh"
+
+
+@router.post("/gold-chat")
+async def gold_chat(request: Request, req: GoldChatRequest) -> EventSourceResponse:
+    settings = get_settings()
+    check_and_count(request, scope="quick", limit=settings.rate_limit_quick)
+    budget.assert_within_budget()
+    gold = await asyncio.to_thread(gold_svc.get_gold)
+
+    async def event_gen():
+        try:
+            async for name, payload in stream_gold_chat(
+                gold=gold, report=req.report,
+                history=[t.model_dump() for t in req.history],
+                question=req.question, language=req.language, model=settings.quick_think_llm,
+            ):
+                if name == "done":
+                    payload["budget_today_usd"] = round(budget.add_cost(float(payload.get("cost_usd", 0) or 0)), 6)
+                yield sse_event(name, payload)
+        except Exception as e:
+            log.exception("gold chat stream failed")
             yield sse_event("error", {"message": str(e)})
 
     return EventSourceResponse(event_gen())
