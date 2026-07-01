@@ -563,6 +563,12 @@ def _format_gold_for_prompt(gold) -> str:
                 f"近5日 {pct(_pct_over(s.history, 5))} · 近20日 {pct(_pct_over(s.history, 20))}")
 
     parts = ["## 黄金数据(截至最新)", line(gold.domestic), line(gold.intl)]
+    if getattr(gold, "premium", None) is not None:
+        tag = "溢价" if gold.premium >= 0 else "贴水"
+        parts.append(
+            f"- 内外价差:国际金折算 {gold.intl_in_cny} 元/克(汇率 {gold.usdcny})· "
+            f"国内金相对国际金{tag} {gold.premium:+.2f} 元/克({gold.premium_pct*100:+.2f}%)"
+        )
     if gold.etf_total is not None:
         parts.append(f"- 全球黄金ETF持仓:{gold.etf_total} 吨 · 较上日 {gold.etf_change:+.2f} 吨({gold.etf_date})")
     # last ~10 closes, aligned by index tail

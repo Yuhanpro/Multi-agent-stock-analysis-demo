@@ -346,6 +346,10 @@ export interface GoldData {
   etf_total: number | null;
   etf_change: number | null;
   etf_date: string | null;
+  usdcny: number | null;
+  intl_in_cny: number | null;
+  premium: number | null;
+  premium_pct: number | null;
   source: string;
 }
 

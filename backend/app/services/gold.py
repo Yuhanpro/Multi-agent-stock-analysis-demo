@@ -35,7 +35,33 @@ class GoldData(BaseModel):
     etf_total: float | None = None    # global gold-ETF holdings, tonnes
     etf_change: float | None = None   # day change, tonnes
     etf_date: str | None = None
+    usdcny: float | None = None       # USD/CNY used for the conversion
+    intl_in_cny: float | None = None  # international gold converted to 元/克
+    premium: float | None = None      # domestic − intl_in_cny (元/克); +溢价 / −贴水
+    premium_pct: float | None = None
     source: str = "akshare-sge/comex"
+
+
+_OZ_G = 31.1035  # grams per troy ounce
+
+
+def _usdcny() -> float | None:
+    """USD/CNY from the Bank of China quote (中行牌价, per-100 → divide)."""
+    import akshare as ak
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        cn = datetime.now(timezone.utc) + timedelta(hours=8)
+        df = ak.currency_boc_sina(symbol="美元",
+                                  start_date=(cn - timedelta(days=12)).strftime("%Y%m%d"),
+                                  end_date=cn.strftime("%Y%m%d"))
+        if df is not None and not df.empty:
+            v = _safe_float(df.iloc[-1].get("央行中间价"))
+            if v:
+                return v / 100.0
+    except Exception as e:
+        log.warning("usdcny failed: %s", e)
+    return None
 
 
 def _domestic() -> GoldSeries:
@@ -107,5 +133,14 @@ def get_gold() -> GoldData:
         return _CACHE[1]
     total, change, date = _etf_holdings()
     data = GoldData(domestic=_domestic(), intl=_intl(), etf_total=total, etf_change=change, etf_date=date)
+    # domestic-vs-international spread, converting COMEX (USD/oz) to 元/克.
+    usdcny = _usdcny()
+    data.usdcny = round(usdcny, 4) if usdcny else None
+    if data.intl.price and usdcny:
+        intl_cny = data.intl.price / _OZ_G * usdcny
+        data.intl_in_cny = round(intl_cny, 2)
+        if data.domestic.price and intl_cny:
+            data.premium = round(data.domestic.price - intl_cny, 2)
+            data.premium_pct = round(data.premium / intl_cny, 4)
     _CACHE = (time.time(), data)
     return data

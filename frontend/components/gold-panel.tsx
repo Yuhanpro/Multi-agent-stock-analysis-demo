@@ -35,6 +35,19 @@ export function GoldPanel({ lang }: { lang: Lang }) {
         <GoldCard s={data.intl} active={which === "intl"} onClick={() => setWhich("intl")} />
       </div>
 
+      {data.premium != null && (
+        <div className="rounded-lg border border-border bg-surface/70 px-4 py-2.5 text-xs">
+          <span className="text-muted">{t("gold.spread")}:</span>
+          <span className="ml-1.5 text-body">{t("gold.intlConv")} <b className="text-heading">{data.intl_in_cny} {t("gold.perg")}</b></span>
+          <span className="ml-2 text-muted">·</span>
+          <span className={cn("ml-2 font-semibold", data.premium >= 0 ? "text-bull" : "text-bear")}>
+            {t("gold.domestic")}{data.premium >= 0 ? t("gold.premiumUp") : t("gold.premiumDown")} {data.premium >= 0 ? "+" : ""}{data.premium} {t("gold.perg")}
+            {data.premium_pct != null && ` (${fmtPct(data.premium_pct)})`}
+          </span>
+          {data.usdcny != null && <span className="ml-2 text-muted/60">{t("gold.fx")} {data.usdcny}</span>}
+        </div>
+      )}
+
       {data.etf_total != null && (
         <p className="text-xs text-muted">
           {t("gold.etf")}:<b className="mx-1 text-heading">{data.etf_total.toFixed(1)} {t("gold.ton")}</b>
