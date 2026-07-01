@@ -23,10 +23,10 @@ interface Run {
 }
 
 const MODE_DEFS: { id: Mode; icon: JSX.Element; labelKey: string; hintKey: string }[] = [
-  { id: "snapshot", icon: <BarChart2 className="h-3.5 w-3.5" />, labelKey: "mode.snapshot.label", hintKey: "mode.snapshot.hint" },
-  { id: "quick",    icon: <Sparkles className="h-3.5 w-3.5" />,  labelKey: "mode.quick.label",    hintKey: "mode.quick.hint" },
-  { id: "serenity", icon: <Network className="h-3.5 w-3.5" />,   labelKey: "mode.serenity.label", hintKey: "mode.serenity.hint" },
-  { id: "debate",   icon: <Users className="h-3.5 w-3.5" />,     labelKey: "mode.debate.label",   hintKey: "mode.debate.hint" },
+  { id: "snapshot", icon: <BarChart2 className="h-4 w-4" />, labelKey: "mode.snapshot.label", hintKey: "mode.snapshot.hint" },
+  { id: "quick",    icon: <Sparkles className="h-4 w-4" />,  labelKey: "mode.quick.label",    hintKey: "mode.quick.hint" },
+  { id: "serenity", icon: <Network className="h-4 w-4" />,   labelKey: "mode.serenity.label", hintKey: "mode.serenity.hint" },
+  { id: "debate",   icon: <Users className="h-4 w-4" />,     labelKey: "mode.debate.label",   hintKey: "mode.debate.hint" },
 ];
 
 const MODE_INTROS: Record<Mode, { en: string; zh: string }> = {
@@ -65,8 +65,6 @@ export default function Page() {
       }
     } catch {}
   }, []);
-
-  const selectedMode = MODE_DEFS.find((m) => m.id === mode) ?? MODE_DEFS[0];
 
   function setMode(next: Mode) {
     setModeState(next);
@@ -134,40 +132,40 @@ export default function Page() {
           </ul>
         </div>
 
-        <section className="rounded-xl border border-border bg-surface/80 p-3 shadow-[0_18px_70px_rgba(0,0,0,0.18)]">
-          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
-            {MODE_DEFS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setMode(m.id)}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors sm:text-sm",
-                  mode === m.id
-                    ? "bg-accent text-white"
-                    : "text-muted hover:bg-border/40 hover:text-heading"
-                )}
-              >
-                {m.icon}
-                <span className="truncate">{t(m.labelKey as any)}</span>
-              </button>
-            ))}
+        <section className="space-y-2.5">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted">{t("mode.pick")}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {MODE_DEFS.map((m) => {
+              const active = mode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMode(m.id)}
+                  className={cn(
+                    "group flex flex-col gap-1.5 rounded-xl border p-3 text-left transition-all",
+                    active
+                      ? "border-accent bg-accent/10 ring-1 ring-accent/30 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
+                      : "border-border bg-surface hover:border-accent/50"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                      active ? "bg-accent text-white" : "bg-border/40 text-accent group-hover:bg-accent/15"
+                    )}
+                  >
+                    {m.icon}
+                  </span>
+                  <span className={cn("text-sm font-semibold", active ? "text-accent" : "text-heading")}>{t(m.labelKey as any)}</span>
+                  <span className="text-[11px] leading-4 text-muted">{t(m.hintKey as any)}</span>
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-3 grid gap-2 border-t border-border/60 px-1.5 pt-3 text-xs leading-5 text-body sm:grid-cols-2">
-            {MODE_DEFS.map((m) => (
-              <div key={m.id} className="flex gap-2">
-                <span className="mt-[0.7em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent/80" />
-                <span>{MODE_INTROS[m.id][lang]}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex items-start gap-2 border-t border-border/60 px-1.5 pt-3 text-xs leading-5 text-muted">
+          <div className="flex items-start gap-2 rounded-lg border border-accent/25 bg-accent/[0.06] px-3 py-2 text-xs leading-5 text-body">
             <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-            <span>
-              <span className="font-medium text-heading">{t(selectedMode.labelKey as any)}</span>
-              <span className="mx-1 text-muted/50">/</span>
-              {t(selectedMode.hintKey as any)}
-            </span>
+            <span>{MODE_INTROS[mode][lang]}</span>
           </div>
         </section>
 
