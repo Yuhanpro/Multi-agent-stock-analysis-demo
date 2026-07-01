@@ -119,7 +119,7 @@ export default function Page() {
         </div>
 
         <div className="max-w-3xl space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight text-heading sm:text-5xl sm:leading-[1.05]">
+          <h1 className="text-2xl font-semibold tracking-tight text-heading sm:text-4xl sm:leading-[1.1]">
             {t("hero.h1")}
           </h1>
           <ul className="max-w-2xl space-y-1 text-sm leading-6 text-body sm:text-base">
