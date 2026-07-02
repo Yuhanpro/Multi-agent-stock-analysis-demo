@@ -417,6 +417,7 @@ export interface AdminStats {
   signups_daily: SignupPoint[];
   hourly: HourPoint[];
   top_users: UserActivity[];
+  top_anons: UserActivity[];
 }
 
 export interface SessionPath {

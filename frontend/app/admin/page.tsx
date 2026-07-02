@@ -350,23 +350,30 @@ function Usage({ stats, zh }: { stats: AdminStats; zh: boolean }) {
     <div className="space-y-4">
       <Chips title={t("admin.clicks")} items={stats.clicks_by_mode} zh={zh} />
       <Chips title={t("admin.byMode")} items={stats.runs_by_mode} zh={zh} />
+      <ListCard title={t("admin.topTickers")} rows={stats.top_tickers.map((p) => ({ k: `${p.ticker} · ${p.market}`, v: p.count }))} mono />
       <div className="grid gap-3 lg:grid-cols-2">
-        <ListCard title={t("admin.topTickers")} rows={stats.top_tickers.map((p) => ({ k: `${p.ticker} · ${p.market}`, v: p.count }))} mono />
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="mb-2 text-sm font-semibold text-heading">{t("admin.topUsers")}</div>
-          {stats.top_users.length === 0 ? <div className="text-xs text-muted">—</div> : (
-            <div className="space-y-1">
-              {stats.top_users.map((u) => (
-                <div key={u.email} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="truncate text-body">{u.email}</span>
-                  <span className="shrink-0 text-muted">{u.last_seen ? new Date(u.last_seen).toLocaleDateString() : "—"}</span>
-                  <span className="w-8 shrink-0 text-right font-semibold text-heading">{u.runs}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ActivityCard title={t("admin.topUsersSignedin")} rows={stats.top_users} />
+        <ActivityCard title={t("admin.topUsersAnon")} rows={stats.top_anons} anon />
       </div>
+    </div>
+  );
+}
+
+function ActivityCard({ title, rows, anon }: { title: string; rows: { email: string; runs: number; last_seen: string | null }[]; anon?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="mb-2 text-sm font-semibold text-heading">{title}</div>
+      {rows.length === 0 ? <div className="text-xs text-muted">—</div> : (
+        <div className="space-y-1">
+          {rows.map((u) => (
+            <div key={u.email} className="flex items-center justify-between gap-2 text-xs">
+              <span className={cn("truncate", anon ? "font-mono text-muted" : "text-body")}>{u.email}</span>
+              <span className="shrink-0 text-muted">{u.last_seen ? new Date(u.last_seen).toLocaleDateString() : "—"}</span>
+              <span className="w-8 shrink-0 text-right font-semibold text-heading">{u.runs}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -83,7 +83,8 @@ class Stats(BaseModel):
     returning_today: int = 0
     signups_daily: list[SignupPoint] = []
     hourly: list[HourPoint] = []
-    top_users: list[UserActivity] = []
+    top_users: list[UserActivity] = []   # signed-in accounts
+    top_anons: list[UserActivity] = []   # anonymous browsers
 
 
 class SessionPath(BaseModel):
@@ -232,9 +233,19 @@ def get_stats() -> Stats:
         UserActivity(email=r["email"], runs=r["runs"], last_seen=r["last"])
         for r in db.query_all(
             "SELECT u.email, "
-            "(SELECT COUNT(*) FROM reports r WHERE r.user_id = u.id) AS runs, "
+            "(SELECT COUNT(*) FROM runs r WHERE r.user_id = u.id) AS runs, "
             "(SELECT MAX(created_at) FROM events e WHERE e.user_id = u.id) AS last "
             "FROM users u WHERE u.email NOT LIKE 'anon:%' ORDER BY runs DESC, u.id LIMIT 10"
+        )
+    ]
+    # Anonymous browsers ranked by completed analyses (runs with no user_id).
+    s.top_anons = [
+        UserActivity(email=str(r["anon"] or "?")[:12], runs=r["runs"], last_seen=r["last"])
+        for r in db.query_all(
+            "SELECT rn.anon_id AS anon, COUNT(*) AS runs, "
+            "(SELECT MAX(created_at) FROM events e WHERE e.anon_id = rn.anon_id) AS last "
+            "FROM runs rn WHERE rn.user_id IS NULL AND rn.anon_id IS NOT NULL "
+            "GROUP BY rn.anon_id ORDER BY runs DESC, last DESC LIMIT 10"
         )
     ]
     return s
