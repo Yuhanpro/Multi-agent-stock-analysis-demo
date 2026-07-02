@@ -33,6 +33,8 @@ def register(body: Credentials) -> AuthResponse:
         user = auth.create_user(body.email, body.password, is_admin=first)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    auth.grant_if_allowlisted(user.email)          # honor admin pre-authorization
+    user = auth.get_user_by_id(user.id) or user    # reflect unlimited in the response
     return AuthResponse(token=auth.make_token(user.id, user.email), user=user)
 
 
@@ -40,7 +42,7 @@ def register(body: Credentials) -> AuthResponse:
 def login(body: Credentials) -> AuthResponse:
     user = auth.authenticate(body.email, body.password)
     if user is None:
-        raise HTTPException(status_code=401, detail="邮箱或密码错误")
+        raise HTTPException(status_code=401, detail="账号或密码错误")
     return AuthResponse(token=auth.make_token(user.id, user.email), user=user)
 
 

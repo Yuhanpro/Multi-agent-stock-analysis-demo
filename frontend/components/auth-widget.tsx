@@ -38,9 +38,9 @@ export function AuthForm({ onDone }: { onDone?: () => void }) {
         {isRegister ? t("auth.title.register") : t("auth.title.login")}
       </div>
       <input
-        type="email"
+        type="text"
         required
-        autoComplete="email"
+        autoComplete="username"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder={t("auth.email")}

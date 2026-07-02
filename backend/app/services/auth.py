@@ -26,6 +26,21 @@ from app.services import db
 _PBKDF2_ITERATIONS = 200_000
 _TOKEN_TTL_SECONDS = 30 * 24 * 3600  # 30 days
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_PHONE_RE = re.compile(r"^1[3-9]\d{9}$")  # mainland mobile number
+
+
+def normalize_identifier(s: str) -> str:
+    """An account identifier can be an email or a phone number. Phones are kept
+    as digits; emails are lower-cased. Stored in the users.email column."""
+    s = (s or "").strip()
+    compact = re.sub(r"[\s\-()]", "", s)
+    if _PHONE_RE.match(compact):
+        return compact
+    return s.lower()
+
+
+def is_valid_identifier(s: str) -> bool:
+    return bool(_EMAIL_RE.match(s) or _PHONE_RE.match(s))
 
 
 class User(BaseModel):
@@ -113,23 +128,31 @@ def normalize_email(email: str) -> str:
 
 
 def create_user(email: str, password: str, is_admin: bool = False) -> User:
-    email = normalize_email(email)
-    if not _EMAIL_RE.match(email):
-        raise ValueError("邮箱格式不正确")
+    ident = normalize_identifier(email)
+    if not is_valid_identifier(ident):
+        raise ValueError("请输入有效的邮箱或手机号")
     if len(password) < 8:
         raise ValueError("密码至少 8 位")
-    if db.query_one("SELECT id FROM users WHERE email = ?", (email,)) is not None:
-        raise ValueError("该邮箱已注册")
+    if db.query_one("SELECT id FROM users WHERE email = ?", (ident,)) is not None:
+        raise ValueError("该邮箱/手机号已注册")
     cur = db.execute(
         "INSERT INTO users (email, password_hash, created_at, is_admin) VALUES (?, ?, ?, ?)",
-        (email, hash_password(password), datetime.now(timezone.utc).isoformat(), 1 if is_admin else 0),
+        (ident, hash_password(password), datetime.now(timezone.utc).isoformat(), 1 if is_admin else 0),
     )
     row = db.query_one("SELECT * FROM users WHERE id = ?", (cur.lastrowid,))
     return _row_to_user(row)
 
 
+def grant_if_allowlisted(identifier: str) -> None:
+    """On registration, honor an admin pre-authorized whitelist entry."""
+    ident = normalize_identifier(identifier)
+    if db.query_one("SELECT identifier FROM allowlist WHERE identifier = ?", (ident,)):
+        db.execute("UPDATE users SET unlimited = 1 WHERE email = ?", (ident,))
+        db.execute("DELETE FROM allowlist WHERE identifier = ?", (ident,))
+
+
 def authenticate(email: str, password: str) -> User | None:
-    row = db.query_one("SELECT * FROM users WHERE email = ?", (normalize_email(email),))
+    row = db.query_one("SELECT * FROM users WHERE email = ?", (normalize_identifier(email),))
     if row is None or not verify_password(password, row["password_hash"]):
         return None
     return _row_to_user(row)

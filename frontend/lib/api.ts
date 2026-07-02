@@ -482,6 +482,27 @@ export async function setUserUnlimited(uid: number, unlimited: boolean): Promise
   );
 }
 
+export async function addToWhitelist(identifier: string): Promise<{ status: string; identifier: string }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/admin/whitelist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ identifier }),
+    })
+  );
+}
+
+export async function fetchPendingWhitelist(): Promise<string[]> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/whitelist/pending`, { headers: authHeaders() }));
+}
+
+export async function removePendingWhitelist(identifier: string): Promise<{ ok: boolean }> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/admin/whitelist/pending/${encodeURIComponent(identifier)}`,
+      { method: "DELETE", headers: authHeaders() })
+  );
+}
+
 export async function fetchAdminPaths(): Promise<SessionPath[]> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/admin/paths`, { headers: authHeaders() }));
 }

@@ -6,8 +6,9 @@ import {
 } from "recharts";
 import { Check, Copy, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
-  createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminSettings, fetchAdminStats, fetchAdminUsers,
-  fetchInvites, revokeInvite, setUserUnlimited, updateAdminSettings,
+  addToWhitelist, createInvites, fetchAdminFeedback, fetchAdminPaths, fetchAdminSettings, fetchAdminStats,
+  fetchAdminUsers, fetchInvites, fetchPendingWhitelist, removePendingWhitelist, revokeInvite, setUserUnlimited,
+  updateAdminSettings,
   type AdminStats, type AdminUser, type Feedback, type InviteCode, type ModeCount, type RateLimits, type SessionPath,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -417,8 +418,15 @@ function RateLimitSettings() {
 function UserWhitelist() {
   const { t } = useT();
   const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [pending, setPending] = useState<string[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
-  useEffect(() => { fetchAdminUsers().then(setUsers).catch(() => setUsers([])); }, []);
+  const [addVal, setAddVal] = useState("");
+  const [addMsg, setAddMsg] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  useEffect(() => {
+    fetchAdminUsers().then(setUsers).catch(() => setUsers([]));
+    fetchPendingWhitelist().then(setPending).catch(() => {});
+  }, []);
   async function toggle(u: AdminUser) {
     setBusy(u.id);
     try {
@@ -427,11 +435,55 @@ function UserWhitelist() {
     } catch {}
     setBusy(null);
   }
+  async function add() {
+    const v = addVal.trim();
+    if (!v) return;
+    setAdding(true); setAddMsg(null);
+    try {
+      const r = await addToWhitelist(v);
+      setAddVal("");
+      if (r.status === "user") {
+        setAddMsg(t("admin.wl.addedUser"));
+        setUsers(await fetchAdminUsers());
+      } else {
+        setAddMsg(t("admin.wl.addedPending"));
+        setPending(await fetchPendingWhitelist());
+      }
+    } catch (e) { setAddMsg((e as Error).message); }
+    setAdding(false);
+  }
+  async function removePending(id: string) {
+    try { await removePendingWhitelist(id); setPending((xs) => xs.filter((x) => x !== id)); } catch {}
+  }
   if (!users) return null;
   return (
     <div className="mb-4 rounded-xl border border-border bg-surface p-4">
       <div className="text-sm font-semibold text-heading">{t("admin.wl.title")}</div>
       <p className="mb-3 mt-0.5 text-[11px] leading-4 text-muted">{t("admin.wl.hint")}</p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={addVal}
+          onChange={(e) => setAddVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+          placeholder={t("admin.wl.addPlaceholder")}
+          className="w-60 rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-heading focus:border-accent focus:outline-none"
+        />
+        <button onClick={add} disabled={adding}
+          className="rounded-lg bg-accent px-3.5 py-1.5 text-sm font-medium text-white hover:bg-accent/85 disabled:opacity-50">
+          {t("admin.wl.add")}
+        </button>
+        {addMsg && <span className="text-[11px] text-muted">{addMsg}</span>}
+      </div>
+      {pending.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {pending.map((p) => (
+            <span key={p} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg/40 px-2.5 py-1 text-[11px] text-muted">
+              {p}<span className="text-accent/70">· {t("admin.wl.pending")}</span>
+              <button onClick={() => removePending(p)} className="text-muted hover:text-bear" aria-label="remove">×</button>
+            </span>
+          ))}
+        </div>
+      )}
       {users.length === 0 ? (
         <div className="text-xs text-muted">{t("admin.wl.empty")}</div>
       ) : (

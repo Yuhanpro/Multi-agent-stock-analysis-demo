@@ -4,7 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.services import app_settings, db, events, invites
+from datetime import datetime, timezone
+
+from app.services import app_settings, auth, db, events, invites
 from app.services import feedback as fb
 from app.services.auth import User, get_current_admin
 from app.services.rate_limit import _parse
@@ -77,6 +79,35 @@ def set_user_unlimited(uid: int, body: SetUnlimited, user: User = Depends(get_cu
     )
     return AdminUser(id=r["id"], email=r["email"], created_at=r["created_at"],
                      is_admin=bool(r["is_admin"]), unlimited=bool(r["unlimited"]), analyses=int(r["analyses"] or 0))
+
+
+class WhitelistAdd(BaseModel):
+    identifier: str = Field(..., min_length=3, max_length=200)
+
+
+@router.get("/admin/whitelist/pending", response_model=list[str])
+def pending_whitelist(user: User = Depends(get_current_admin)) -> list[str]:
+    return [r["identifier"] for r in db.query_all("SELECT identifier FROM allowlist ORDER BY created_at DESC")]
+
+
+@router.post("/admin/whitelist")
+def add_whitelist(body: WhitelistAdd, user: User = Depends(get_current_admin)) -> dict:
+    ident = auth.normalize_identifier(body.identifier)
+    if not auth.is_valid_identifier(ident):
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱或手机号")
+    row = db.query_one("SELECT id FROM users WHERE email = ?", (ident,))
+    if row:  # already registered → grant immediately
+        db.execute("UPDATE users SET unlimited = 1 WHERE id = ?", (row["id"],))
+        return {"status": "user", "identifier": ident}
+    db.execute("INSERT OR IGNORE INTO allowlist (identifier, created_at) VALUES (?, ?)",
+               (ident, datetime.now(timezone.utc).isoformat()))
+    return {"status": "pending", "identifier": ident}
+
+
+@router.delete("/admin/whitelist/pending/{identifier}")
+def remove_pending(identifier: str, user: User = Depends(get_current_admin)) -> dict:
+    db.execute("DELETE FROM allowlist WHERE identifier = ?", (auth.normalize_identifier(identifier),))
+    return {"ok": True}
 
 
 @router.get("/admin/invites", response_model=list[invites.InviteCode])

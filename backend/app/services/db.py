@@ -143,6 +143,12 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Pre-authorized identifiers (email/phone) that become unlimited on sign-up.
+CREATE TABLE IF NOT EXISTS allowlist (
+    identifier TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL
+);
 """
 
 
