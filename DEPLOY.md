@@ -171,27 +171,34 @@ sudo systemctl reload nginx
 ICP备案通过后:
 
 1. 域名 A 记录指向 VPS IP
-2. 安全组开放 443
-3. 安装 certbot:
+2. 安全组开放 443(和 80,给 ACME 续期用)
+3. 安装 certbot,**只签证书、不让它改 nginx**:
 
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d your.domain
+sudo apt install -y certbot
+sudo certbot certonly --webroot -w /var/www/stock-web -d your.domain
 ```
 
-4. 更新 `.env`:
+> ⚠️ 不要用 `certbot --nginx`。它会就地改 `/etc/nginx` 里的站点配置,而
+> `install.sh` 每次部署都用仓库的 `deploy/nginx.conf` 覆盖它 —— 下次部署
+> HTTPS 就没了。正确姿势:`certonly` 只拿证书,把 443 配置留在仓库的
+> `deploy/nginx.conf`(文件末尾已预置注释模板,取消注释填域名即可)。
+
+4. 取消 `deploy/nginx.conf` 末尾的 Stage B 443 server 块注释,替换 `your.domain`。
+
+5. 更新 `.env`:
 
 ```env
 PUBLIC_API_BASE=https://your.domain
 ```
 
-5. 重新构建前端(因为 `NEXT_PUBLIC_API_BASE` 是 build-time baked):
+6. 重新构建前端并部署(因为 `NEXT_PUBLIC_API_BASE` 是 build-time baked;这一步同时会装上带 443 块的 nginx 配置):
 
 ```bash
 sudo bash deploy/install.sh
 ```
 
-6. 验证:
+7. 验证:
 
 ```bash
 curl -I https://your.domain/healthz

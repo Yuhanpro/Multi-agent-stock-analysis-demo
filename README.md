@@ -165,6 +165,18 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-07-02 — 分享前安全整改(部署层加固)
+
+交付内容:
+
+- **线上安全体检** —— 对 `http://47.93.21.132:18080` 做了一轮外部扫描。**应用层无问题**:前端 bundle 无硬编码密钥、无 `NEXT_PUBLIC_` 泄露、`.env`/`.git` 不可下载、`/api/admin/*` 与 `/api/reports` 均 401、注册走邀请码(`/api/auth/register` 400)、烧钱端点有匿名限流(quick 5/时、debate 1/时/IP)+ 每日 $10 预算兜底。
+- **`deploy/nginx.conf` 加固** —— 全站响应加安全头:`X-Frame-Options: DENY`(防点击劫持)、`X-Content-Type-Options: nosniff`、`Referrer-Policy`、`Permissions-Policy`、CSP(`unsafe-inline` 兼容 Next 静态导出的内联 bootstrap);API 响应加 nosniff + DENY;隐藏文件拦截扩到 `.git`。因 nginx `add_header` 继承是"替换非合并",每个 location 各写一份。
+- **Stage B HTTPS 预置 + 修坑** —— 在 `nginx.conf` 末尾预置注释版 443 server 块,`DEPLOY.md` 改用 `certbot certonly`(而非 `certbot --nginx`):否则 `install.sh` 每次部署会用仓库配置覆盖 certbot 就地改动、抹掉 HTTPS。
+
+阻塞项:
+
+- **HTTPS 尚未上线**,登录/注册仍是 HTTP 明文传输。已选定走「域名 + ICP 备案 + certbot」正规路线(备案约 14–21 天)。**备案完成前不要公开分享**,仅限信任的人小范围演示,并提醒注册勿用常用密码。
+
 ### 2026-06-26 — 基金页 /fund(公募 / ETF)
 
 交付内容:
