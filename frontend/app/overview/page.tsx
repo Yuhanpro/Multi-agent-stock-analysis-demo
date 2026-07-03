@@ -100,11 +100,14 @@ export default function OverviewPage() {
         {market === "CN" && (
           <Link
             href="/hotspot"
-            className="group flex items-center gap-2.5 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent shadow-sm transition-colors hover:bg-accent/15"
+            className="group flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 shadow-sm transition-colors hover:bg-accent/15"
           >
-            <Radar className="h-4 w-4 shrink-0" />
-            <span className="min-w-0">{t("ov.toHotspot")}</span>
-            <ArrowRight className="ml-auto h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+            <Radar className="h-5 w-5 shrink-0 text-accent" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-accent">{t("ov.toHotspot")}</span>
+              <span className="block text-[11px] leading-4 text-muted">{t("ov.toHotspotDesc")}</span>
+            </span>
+            <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />
           </Link>
         )}
       </header>

@@ -46,8 +46,16 @@ export default function HotspotPage() {
             <span className="text-sm font-semibold">{t("nav.hotspot")}</span>
           </div>
           <p className="max-w-2xl text-sm leading-6 text-body">{t("hot.lead")}</p>
-          <Link href="/overview" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
-            {t("hot.toOverview")} <ArrowRight className="h-3 w-3" />
+          <Link
+            href="/overview"
+            className="group flex max-w-xl items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 shadow-sm transition-colors hover:bg-accent/15"
+          >
+            <Flame className="h-5 w-5 shrink-0 text-accent" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-accent">{t("hot.toOverview")}</span>
+              <span className="block text-[11px] leading-4 text-muted">{t("hot.toOverviewDesc")}</span>
+            </span>
+            <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
         <button onClick={() => setNonce((n) => n + 1)} className="mt-1 shrink-0 text-muted hover:text-heading" aria-label="refresh">
