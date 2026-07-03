@@ -375,11 +375,13 @@ export async function fetchGold(): Promise<GoldData> {
 // ---------- hotspot radar (A-share) -----------------------------------------
 export interface HotStock { code: string; name: string; change_pct: number | null; price: number | null; amount: number | null; turnover: number | null; seal_fund: number | null; boards: number | null; industry: string | null; }
 export interface Ladder { boards: number; count: number; }
-export interface HotSector { name: string; change_pct: number | null; amount: number | null; limit_ups: number; seal_fund: number | null; leaders: string[]; }
+export interface HotSector { name: string; change_pct: number | null; amount: number | null; limit_ups: number; seal_fund: number | null; leaders: string[]; days: number; }
 export interface Mover { code: string; name: string; change_pct: number | null; amount: number | null; }
+export interface Accel { code: string; name: string; change_pct: number | null; amount: number | null; ratio: number | null; }
 export interface Hotspot {
   date: string | null; zt_count: number; broke_count: number; max_boards: number;
-  ladder: Ladder[]; seal_rank: HotStock[]; directions: HotSector[]; movers: Mover[]; sectors: HotSector[];
+  ladder: Ladder[]; seal_rank: HotStock[]; directions: HotSector[]; movers: Mover[];
+  accel: Accel[]; accel_days: number; sectors: HotSector[];
   updated: string; note: string;
 }
 export async function fetchHotspot(): Promise<Hotspot> {

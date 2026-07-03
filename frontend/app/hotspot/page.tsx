@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { Flame, Loader2, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { fetchHotspot, type Hotspot } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { streamSSE } from "@/lib/sse";
+import { useT, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/format";
 
 const HOT = "text-[#ef4444]"; // A股红涨
@@ -11,10 +14,11 @@ const yi = (v: number | null) => (v == null ? "—" : `${(v / 1e8).toFixed(1)}�
 const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
 
 export default function HotspotPage() {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [d, setD] = useState<Hotspot | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
+  const [reviewOn, setReviewOn] = useState(0);
   useEffect(() => {
     setErr(null);
     fetchHotspot().then(setD).catch((e) => setErr(e.message));
@@ -62,7 +66,10 @@ export default function HotspotPage() {
                 const max = d.directions[0]?.limit_ups || 1;
                 return (
                   <div key={x.name} className="flex items-center gap-3 text-xs">
-                    <span className="w-20 shrink-0 truncate text-heading">{x.name}</span>
+                    <span className="flex w-24 shrink-0 items-center gap-1 truncate">
+                      <span className="truncate text-heading">{x.name}</span>
+                      {x.days >= 2 && <span className="shrink-0 rounded bg-accent/15 px-1 text-[10px] text-accent">{t("hot.streak").replace("{n}", String(x.days))}</span>}
+                    </span>
                     <div className="h-4 flex-1 overflow-hidden rounded bg-bg/40">
                       <div className="h-full rounded bg-[#ef4444]/70" style={{ width: `${(x.limit_ups / max) * 100}%` }} />
                     </div>
@@ -106,6 +113,26 @@ export default function HotspotPage() {
             </Panel>
           </div>
 
+          {/* 量能加速榜 */}
+          <Panel title={t("hot.accel")} hint={t("hot.accelHint")}>
+            {d.accel.length === 0 ? (
+              <div className="text-xs text-muted">{t("hot.accelBoot").replace("{n}", String(d.accel_days))}</div>
+            ) : (
+              <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                {d.accel.map((a, i) => (
+                  <div key={a.code} className="flex items-center gap-2 text-xs">
+                    <span className="w-4 shrink-0 text-muted">{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-heading">{a.name}</span>
+                    <span className={cn("w-12 shrink-0 text-right font-semibold", (a.change_pct ?? 0) >= 0 ? HOT : "text-bull")}>
+                      {(a.change_pct ?? 0) >= 0 ? "+" : ""}{pct(a.change_pct)}
+                    </span>
+                    <span className="w-12 shrink-0 text-right font-semibold text-accent">×{a.ratio}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
           {/* 领涨行业 */}
           <Panel title={t("hot.sectors")}>
             <div className="flex flex-wrap gap-2">
@@ -118,10 +145,53 @@ export default function HotspotPage() {
             </div>
           </Panel>
 
+          {/* AI 复盘 */}
+          <div>
+            <button
+              onClick={() => setReviewOn(Date.now())}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/85"
+            >
+              <Sparkles className="h-4 w-4" /> {t("hot.review")}
+            </button>
+            <p className="mt-1.5 text-[11px] text-muted/60">{t("hot.reviewNote")}</p>
+          </div>
+          {reviewOn > 0 && <HotspotReview nonce={reviewOn} language={lang} />}
+
           <p className="text-[11px] leading-4 text-muted/60">⚠️ {d.note}。{t("hot.proxyNote")}</p>
         </div>
       )}
     </main>
+  );
+}
+
+function HotspotReview({ nonce, language }: { nonce: number; language: Lang }) {
+  const { t } = useT();
+  const [text, setText] = useState("");
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ref = useRef<{ abort: () => void } | null>(null);
+  useEffect(() => {
+    setText(""); setDone(false); setError(null);
+    const ctl = streamSSE("/api/hotspot-review", { language }, {
+      onEvent: (ev, d) => {
+        if (ev === "token") setText((x) => x + (d?.text ?? ""));
+        else if (ev === "done") setDone(true);
+        else if (ev === "error") setError(d?.message ?? "error");
+      },
+      onError: (e) => setError(e.message),
+    });
+    ref.current = ctl;
+    return () => ctl.abort();
+  }, [nonce, language]);
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+        {done ? <CheckCircle2 className="h-4 w-4 text-bull" /> : error ? null : <Loader2 className="h-4 w-4 animate-spin text-accent" />}
+        {t("hot.review")}
+      </div>
+      {error ? <div className="text-sm text-bear">{error}</div>
+        : <div className="prose-tight max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>}
+    </div>
   );
 }
 

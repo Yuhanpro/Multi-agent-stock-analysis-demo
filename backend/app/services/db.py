@@ -149,6 +149,21 @@ CREATE TABLE IF NOT EXISTS allowlist (
     identifier TEXT PRIMARY KEY,
     created_at TEXT NOT NULL
 );
+
+-- Hotspot radar history: daily per-stock turnover (for 量能加速) and the daily
+-- mainline sectors (for 热点持续性). Small rolling windows, pruned in code.
+CREATE TABLE IF NOT EXISTS spot_snap (
+    date   TEXT NOT NULL,
+    code   TEXT NOT NULL,
+    amount REAL,
+    PRIMARY KEY (date, code)
+);
+CREATE TABLE IF NOT EXISTS mainline_snap (
+    date      TEXT NOT NULL,
+    industry  TEXT NOT NULL,
+    limit_ups INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, industry)
+);
 """
 
 
@@ -210,6 +225,13 @@ def execute(sql: str, params: tuple = ()) -> sqlite3.Cursor:
         cur = conn.execute(sql, params)
         conn.commit()
         return cur
+
+
+def executemany(sql: str, seq) -> None:
+    with _lock:
+        conn = _get()
+        conn.executemany(sql, seq)
+        conn.commit()
 
 
 def query_one(sql: str, params: tuple = ()) -> sqlite3.Row | None:

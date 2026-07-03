@@ -678,6 +678,100 @@ async def stream_gold_review(*, gold, period: str = "day", model: str | None = N
     }
 
 
+_HOTSPOT_SYSTEM = """你是一位专业的 A 股盘面分析师,为用户做**当日热点复盘**。你会拿到当日的客观盘面统计:涨停家数与连板梯队、封板资金榜、涨停按行业聚合(资金方向)、放量涨幅榜、量能加速榜、领涨行业,以及部分主线的连续在榜天数。
+
+你的任务:用这些客观数据,帮用户看懂**今天资金在抢什么方向、主线是什么、强度和持续性如何、有哪些需要注意的地方**。
+
+原则:
+- 只依据给到的数据说话,**不要编造未提供的新闻、政策或具体数字**;可对催化逻辑做合理推测,但要点明是推测。
+- 讲清楚"主线—龙头—梯队"的结构:哪个方向最强(涨停数/封板资金)、龙头是谁、连板高度、是否有持续性(连续在榜天数)、有没有退潮迹象(炸板多、加速榜里没有该方向)。
+- **绝不推荐买卖某只股票、不预测涨跌、不喊点位**。只做客观描述与结构解读,并提示风险(如高位分歧、题材退潮、炸板等)。
+- 结尾用一句话小结今天的盘面主线。用与提问相同的语言,简洁分段,不要逐条复述原始榜单。
+- 这是研究性复盘,**不构成投资建议**。"""
+
+
+def _format_hotspot_for_prompt(hs) -> str:
+    def yi(v):
+        return f"{v/1e8:.1f}亿" if v else "—"
+
+    parts = [f"## A股当日盘面({hs.date or ''})",
+             f"- 涨停 {hs.zt_count} 家,炸板 {hs.broke_count} 家,最高连板 {hs.max_boards}",
+             "- 连板梯队:" + "、".join(f"{'首板' if l.boards < 2 else str(l.boards)+'板'}{l.count}家" for l in hs.ladder)]
+    if hs.directions:
+        parts.append("- 资金方向(涨停行业聚合,含连续在榜天数):")
+        for x in hs.directions:
+            parts.append(f"  · {x.name}:{x.limit_ups}家涨停、封板资金合计{yi(x.seal_fund)}、连续{x.days}天在榜;代表 {('、'.join(x.leaders))}")
+    if hs.seal_rank:
+        parts.append("- 封板资金榜:" + "、".join(
+            f"{s.name}({s.boards}板,{yi(s.seal_fund)})" for s in hs.seal_rank[:8]))
+    if hs.movers:
+        parts.append("- 放量涨幅榜:" + "、".join(
+            f"{m.name}(+{(m.change_pct or 0)*100:.1f}%,{yi(m.amount)})" for m in hs.movers[:10]))
+    if hs.accel:
+        parts.append("- 量能加速榜(今日额/近数日均额):" + "、".join(
+            f"{a.name}(×{a.ratio})" for a in hs.accel[:10]))
+    if hs.sectors:
+        parts.append("- 领涨行业:" + "、".join(
+            f"{s.name}(+{(s.change_pct or 0)*100:.2f}%)" for s in hs.sectors[:8]))
+    return "\n".join(parts)
+
+
+async def stream_hotspot_review(*, hotspot, model: str | None = None,
+                                language: str = "zh") -> AsyncIterator[tuple[str, dict]]:
+    """AI 当日热点复盘(客观解读,非荐股)。"""
+    settings = get_settings()
+    if not settings.deepseek_api_key:
+        yield "error", {"message": "DEEPSEEK_API_KEY not configured on server"}
+        return
+    model = model or settings.quick_think_llm
+
+    user_text = _format_hotspot_for_prompt(hotspot)
+    user_text += ("\n\n## 任务\n\n请做**当日热点复盘**:说清今天资金在抢的主线方向、龙头与梯队结构、"
+                  "强度与持续性、以及需要注意的风险点,最后一句小结。只做客观解读,不荐股、不预测。")
+    if not (language or "zh").lower().startswith("zh"):
+        user_text += "\n**Write the review in English.**"
+
+    yield "meta", {"model": model, "skill": "hotspot"}
+    client = AsyncOpenAI(
+        api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url,
+        http_client=httpx.AsyncClient(trust_env=False),
+    )
+    usage = None
+    stop_reason = None
+    try:
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": _HOTSPOT_SYSTEM}, {"role": "user", "content": user_text}],
+            max_tokens=2048, stream=True, stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            if chunk.usage is not None:
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.delta and choice.delta.content:
+                yield "token", {"text": choice.delta.content}
+            if choice.finish_reason:
+                stop_reason = choice.finish_reason
+    except Exception as e:
+        log.exception("hotspot review stream failed")
+        yield "error", {"message": f"upstream error: {e}"}
+        return
+
+    in_tok = usage.prompt_tokens if usage else 0
+    out_tok = usage.completion_tokens if usage else 0
+    cached = 0
+    if usage is not None:
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) or 0 if details else 0
+    yield "done", {
+        "input_tokens": in_tok, "output_tokens": out_tok, "cached_input_tokens": cached,
+        "cost_usd": round(estimate_cost_usd(model, in_tok, out_tok, cached), 6),
+        "stop_reason": stop_reason or "stop",
+    }
+
+
 _GOLD_CHAT_SYSTEM = """你是一位专业的黄金市场分析助手,正在就黄金与用户进行多轮追问。你此前已为用户生成过一份黄金复盘(见下方上下文),现在用户会基于复盘或黄金数据继续提问。
 
 回答原则:
