@@ -50,7 +50,7 @@ export default function OverviewPage() {
   }, [market]);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       <header className="space-y-3">
         <div className="flex items-center gap-2 text-accent">
           <Flame className="h-4 w-4" />
@@ -120,7 +120,7 @@ export default function OverviewPage() {
       ) : error ? (
         <div className="mt-6 rounded-lg border border-bear/40 bg-bear/10 px-4 py-3 text-sm text-bear">{error}</div>
       ) : data ? (
-        <div className="mt-6 space-y-8">
+        <div className="mt-6 space-y-6 sm:space-y-8">
           {/* Index strip (CN) */}
           {mod === "market" && data.indices.length > 0 && (
             <section>
@@ -183,8 +183,8 @@ export default function OverviewPage() {
                       <span className="truncate font-semibold text-heading">{ind.name}</span>
                       <span className={cn("font-semibold tabular-nums", tone(ind.change_pct, market))}>{fmtPct(ind.change_pct)}</span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-[11px] text-muted">
-                      <span>{t("ov.amount")} {yi(ind.amount)}{ind.num_companies ? ` · ${ind.num_companies}家` : ""}</span>
+                    <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                      <span className="shrink-0">{t("ov.amount")} {yi(ind.amount)}{ind.num_companies ? ` · ${ind.num_companies}家` : ""}</span>
                       {ind.leader_name && (
                         <span className="truncate">{t("ov.leader")}: {ind.leader_name} <span className={tone(ind.leader_change, market)}>{fmtPct(ind.leader_change)}</span></span>
                       )}
@@ -212,7 +212,7 @@ export default function OverviewPage() {
                       <span className="font-medium text-heading">{c.name}</span>
                       <span className="ml-2 font-mono text-[11px] text-muted">{c.code}</span>
                     </div>
-                    <span className="shrink-0 text-right text-xs text-muted">{t("ov.amount")} {yi(c.amount)}</span>
+                    <span className="hidden shrink-0 text-right text-xs text-muted sm:inline">{t("ov.amount")} {yi(c.amount)}</span>
                     <span className={cn("w-16 shrink-0 text-right text-sm font-semibold tabular-nums", tone(c.change_pct, c.market))}>{fmtPct(c.change_pct)}</span>
                   </Link>
                 ))}
