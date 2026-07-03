@@ -13,6 +13,18 @@ const HOT = "text-[#ef4444]"; // A股红涨
 const yi = (v: number | null) => (v == null ? "—" : `${(v / 1e8).toFixed(1)}亿`);
 const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
 
+// 市场情绪判定(0 弱势 … 4 强势):涨停家数 + 炸板率 + 连板高度
+function moodIdx(d: Hotspot): number {
+  const denom = d.zt_count + d.broke_count;
+  const broke = denom ? d.broke_count / denom : 0;
+  if (d.zt_count >= 60 && broke < 0.35 && d.max_boards >= 4) return 4;
+  if (d.zt_count >= 40 && broke < 0.45) return 3;
+  if (d.zt_count >= 20) return 2;
+  if (d.zt_count >= 8) return 1;
+  return 0;
+}
+const MOODS = ["cold", "weak", "neutral", "warm", "strong"] as const;
+
 export default function HotspotPage() {
   const { t, lang } = useT();
   const [d, setD] = useState<Hotspot | null>(null);
@@ -44,6 +56,39 @@ export default function HotspotPage() {
 
       {d && (
         <div className="mt-5 space-y-4">
+          {/* 结论 */}
+          {(() => {
+            const mi = moodIdx(d);
+            const tone = mi >= 3 ? HOT : mi <= 1 ? "text-bull" : "text-muted";
+            const border = mi >= 3 ? "border-[#ef4444]/40" : mi <= 1 ? "border-bull/40" : "border-border";
+            const denom = d.zt_count + d.broke_count;
+            const rate = denom ? Math.round((d.broke_count / denom) * 100) : 0;
+            const hotSectors = d.directions.slice(0, 5);
+            return (
+              <div className="rounded-xl border border-accent/30 bg-accent/[0.06] p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-heading">{t("hot.conclusion")}</span>
+                  <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold", tone, border)}>{t(`hot.mood.${MOODS[mi]}` as never)}</span>
+                  <span className="ml-auto text-[11px] text-muted">{d.date} · {t("hot.updated")} {d.updated}</span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-body">
+                  {t("hot.verdictTpl").replace("{zt}", String(d.zt_count)).replace("{boards}", String(d.max_boards)).replace("{rate}", String(rate))}
+                </p>
+                {hotSectors.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-muted">{t("hot.hotIn")}</span>
+                    {hotSectors.map((x) => (
+                      <span key={x.name} className="rounded-md border border-border bg-surface px-2 py-0.5 text-xs">
+                        <span className="text-heading">{x.name}</span> <b className={HOT}>{x.limit_ups}</b>
+                        {x.days >= 2 && <span className="ml-1 text-[10px] text-accent">{t("hot.streak").replace("{n}", String(x.days))}</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* summary */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-border bg-surface px-4 py-3 text-sm">
             <span className="text-muted">{d.date} · {t("hot.updated")} {d.updated}</span>
