@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Flame, LineChart, Loader2, Newspaper, TrendingUp } from "lucide-react";
+import { ArrowRight, Flame, LineChart, Loader2, Newspaper, Radar, TrendingUp } from "lucide-react";
 import { fetchMarketOverview, type Market, type MarketOverview } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn, fmtPct } from "@/lib/format";
@@ -98,8 +98,13 @@ export default function OverviewPage() {
           <p className="text-[11px] leading-4 text-muted/70">{market === "CN" ? t("ov.proxy") : t("ov.ushkNote")}</p>
         )}
         {market === "CN" && (
-          <Link href="/hotspot" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
-            {t("ov.toHotspot")} <TrendingUp className="h-3 w-3" />
+          <Link
+            href="/hotspot"
+            className="group flex items-center gap-2.5 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent shadow-sm transition-colors hover:bg-accent/15"
+          >
+            <Radar className="h-4 w-4 shrink-0" />
+            <span className="min-w-0">{t("ov.toHotspot")}</span>
+            <ArrowRight className="ml-auto h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </Link>
         )}
       </header>
