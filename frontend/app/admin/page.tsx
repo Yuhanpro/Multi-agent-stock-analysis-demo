@@ -134,10 +134,11 @@ function wsum(daily: AdminStats["daily"], field: keyof AdminStats["daily"][numbe
 
 function periodMetrics(stats: AdminStats, period: Period) {
   const d = stats.daily;
-  const F = ["views", "visitors", "analyses", "runs", "runs_signed", "runs_anon", "signups", "cost"] as const;
+  const F = ["views", "visitors", "new_visitors", "analyses", "runs", "runs_signed", "runs_anon", "signups", "cost"] as const;
   if (period === "total") {
     return {
-      m: { views: stats.total_views, visitors: stats.total_visitors, analyses: stats.analyses_total, runs: stats.runs_total, runs_signed: stats.runs_signed_total, runs_anon: stats.runs_anon_total, signups: stats.total_users, cost: stats.cost_total },
+      // Cumulatively every visitor was "new" once, so total new = total distinct visitors.
+      m: { views: stats.total_views, visitors: stats.total_visitors, new_visitors: stats.total_visitors, analyses: stats.analyses_total, runs: stats.runs_total, runs_signed: stats.runs_signed_total, runs_anon: stats.runs_anon_total, signups: stats.total_users, cost: stats.cost_total },
       delta: {} as Record<string, number | null>, hasDelta: false,
     };
   }
@@ -185,8 +186,8 @@ function Overview({ stats }: { stats: AdminStats }) {
         <Kpi label={t("admin.views")} value={m.views} delta={delta.views} />
         <Kpi label={t("admin.visitors")} value={m.visitors} delta={delta.visitors} />
         <Kpi label={t("admin.perVisitor")} value={per(m.views, m.visitors).toFixed(1)} />
-        <Kpi label={t("admin.new")} value={period === "total" ? stats.total_users : stats.new_today} muted={period !== "today"} />
-        <Kpi label={t("admin.returning")} value={period === "today" ? stats.returning_today : "—"} muted={period !== "today"} />
+        <Kpi label={t("admin.new")} value={m.new_visitors} delta={delta.new_visitors} />
+        <Kpi label={t("admin.returning")} value={period === "total" ? "—" : Math.max(0, m.visitors - m.new_visitors)} muted={period === "total"} />
       </Section>
 
       <Section title={t("admin.sec.users")}>

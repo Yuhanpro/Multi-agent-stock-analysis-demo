@@ -20,6 +20,7 @@ class DailyPoint(BaseModel):
     date: str
     views: int = 0
     visitors: int = 0
+    new_visitors: int = 0   # first-ever seen that day (windowed sums are exact)
     analyses: int = 0       # all-user analysis starts (run:% events)
     runs: int = 0           # saved reports (signed-in only)
     runs_signed: int = 0    # completed analyses (runs table) by signed-in users
@@ -170,10 +171,16 @@ def get_stats() -> Stats:
         "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM events WHERE path LIKE 'run:%' GROUP BY d")}
     su = {r["d"]: r["c"] for r in db.query_all(
         "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d")}
+    # New visitors per day = anon_ids whose FIRST-EVER event fell on that (BJ) day.
+    # Each anon appears on exactly one day, so summing over a window is exact.
+    nv = {r["d"]: r["c"] for r in db.query_all(
+        "SELECT substr(datetime(m,'+8 hours'),1,10) AS d, COUNT(*) AS c "
+        "FROM (SELECT anon_id, MIN(created_at) AS m FROM events GROUP BY anon_id) GROUP BY d")}
     s.daily = [
         DailyPoint(
             date=d,
             views=ev.get(d, (0, 0))[0], visitors=ev.get(d, (0, 0))[1],
+            new_visitors=nv.get(d, 0),
             analyses=an.get(d, 0),
             runs=rp.get(d, 0), runs_signed=rs.get(d, 0), runs_anon=ra.get(d, 0),
             cost=round(float(rc.get(d, 0) or 0), 4),
