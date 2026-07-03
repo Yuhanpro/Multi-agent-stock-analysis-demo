@@ -387,7 +387,7 @@ export interface Hotspot {
   ladder: Ladder[]; seal_rank: HotStock[]; directions: HotSector[]; movers: Mover[];
   accel: Accel[]; accel_days: number;
   flow_industry: FundFlow[]; flow_concept: FundFlow[];
-  sankey: SankeyData | null;
+  sankey_in: SankeyData | null; sankey_out: SankeyData | null;
   sectors: HotSector[];
   updated: string; note: string;
 }

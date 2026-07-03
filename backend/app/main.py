@@ -62,6 +62,11 @@ _threading.Thread(target=_warm_funds, daemon=True).start()
 # Market-heat: CN runs several akshare calls + US/HK N per-ticker fetches; warm
 # all three at boot (and refresh in the background) so the page loads instantly.
 _threading.Thread(target=_warm_overview, daemon=True).start()
+# Hotspot net-flow Sankeys are heavy (industry map + all-stock flow, ~20s) — warm
+# at boot so the drill-down is ready, then it self-refreshes every few minutes.
+from app.services.hotspot import warm_flow as _warm_flow  # noqa: E402
+
+_threading.Thread(target=_warm_flow, daemon=True).start()
 
 # Price-alert engine is paused for now (WeChat-binding UX was too heavy). The
 # code/tables stay in place; re-enable by uncommenting + restoring the watchlist UI.

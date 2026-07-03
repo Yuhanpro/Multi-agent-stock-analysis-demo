@@ -127,10 +127,15 @@ export default function HotspotPage() {
             </Panel>
           )}
 
-          {/* 桑基下钻:打板抢筹 → 行业 → 个股 */}
-          {d.sankey && d.sankey.links.length > 0 && (
-            <Panel title={t("hot.sankey")} hint={t("hot.sankeyHint")}>
-              <HotspotSankey data={d.sankey} />
+          {/* 桑基下钻:今日资金流入/流出 → 行业 → 个股(真实净流入) */}
+          {d.sankey_in && d.sankey_in.links.length > 0 && (
+            <Panel title={t("hot.sankeyIn")} hint={t("hot.sankeyHint")}>
+              <HotspotSankey data={d.sankey_in} />
+            </Panel>
+          )}
+          {d.sankey_out && d.sankey_out.links.length > 0 && (
+            <Panel title={t("hot.sankeyOut")} hint={t("hot.sankeyHintOut")}>
+              <HotspotSankey data={d.sankey_out} out />
             </Panel>
           )}
 
@@ -259,8 +264,9 @@ function HotspotReview({ nonce, language }: { nonce: number; language: Lang }) {
 }
 
 function SankeyNodeShape(props: any) {
-  const { x, y, width, height, index, payload, containerWidth } = props;
-  const fill = payload.kind === "root" ? "hsl(var(--theme-accent))" : payload.kind === "industry" ? "#ef4444" : "#6f89f6";
+  const { x, y, width, height, index, payload, containerWidth, out } = props;
+  const hot = out ? "#22c55e" : "#ef4444";
+  const fill = payload.kind === "root" ? "hsl(var(--theme-accent))" : payload.kind === "industry" ? hot : out ? "#86efac" : "#6f89f6";
   const isRight = x + width + 6 > containerWidth;
   return (
     <Layer key={`n${index}`}>
@@ -273,15 +279,15 @@ function SankeyNodeShape(props: any) {
   );
 }
 
-function HotspotSankey({ data }: { data: { nodes: { name: string; kind: string }[]; links: { source: number; target: number; value: number }[] } }) {
+function HotspotSankey({ data, out }: { data: { nodes: { name: string; kind: string }[]; links: { source: number; target: number; value: number }[] }; out?: boolean }) {
   const leaves = data.nodes.filter((n) => n.kind === "stock").length || 6;
   const height = Math.max(320, leaves * 26 + 24);
   return (
     <div className="overflow-x-auto">
       <div style={{ minWidth: 540 }}>
         <ResponsiveContainer width="100%" height={height}>
-          <Sankey data={data} node={<SankeyNodeShape />} nodePadding={16} nodeWidth={10}
-            link={{ stroke: "#ef4444", strokeOpacity: 0.18 }} margin={{ top: 10, bottom: 10, left: 6, right: 76 }}>
+          <Sankey data={data} node={<SankeyNodeShape out={out} />} nodePadding={16} nodeWidth={10}
+            link={{ stroke: out ? "#22c55e" : "#ef4444", strokeOpacity: 0.18 }} margin={{ top: 10, bottom: 10, left: 6, right: 76 }}>
             <RTooltip contentStyle={{ background: "hsl(var(--theme-chart-tooltip))", border: "1px solid hsl(var(--theme-chart-grid))", borderRadius: 8, fontSize: 12 }} />
           </Sankey>
         </ResponsiveContainer>

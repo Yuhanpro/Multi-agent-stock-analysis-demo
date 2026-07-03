@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +26,15 @@ _CACHE: tuple[float, "Hotspot"] | None = None
 _TTL = 90
 _last_snap = 0.0        # throttle the daily snapshot upsert (per process)
 _SNAP_EVERY = 1800      # at most once / 30 min
+
+# Real net-flow Sankeys (个股净流入 + 新浪行业映射) — heavy (~20s), so cached with
+# background refresh; the /api/hotspot request never blocks on it.
+_FLOW_CACHE: tuple[float, tuple] | None = None
+_FLOW_TTL = 180
+_flow_lock = threading.Lock()
+_flow_refreshing = False
+_IND_MAP: tuple[float, dict] | None = None
+_IND_MAP_TTL = 86400
 
 
 class HotStock(BaseModel):
@@ -107,7 +118,8 @@ class Hotspot(BaseModel):
     accel_days: int = 0               # 已积累的历史天数(不足则加速榜为空)
     flow_industry: list[FundFlow] = []  # 行业资金净流入榜(同花顺)
     flow_concept: list[FundFlow] = []   # 概念/题材资金净流入榜(同花顺)
-    sankey: Sankey | None = None      # 打板抢筹 → 行业 → 涨停个股(封板资金,守恒)
+    sankey_in: Sankey | None = None   # 今日资金流入 → 行业 → 个股(真实净流入,守恒)
+    sankey_out: Sankey | None = None  # 今日资金流出 → 行业 → 个股
     sectors: list[HotSector] = []     # 领涨行业(新浪)
     updated: str = ""
     note: str = "客观行情统计,非荐股、不构成投资建议"
@@ -297,6 +309,131 @@ def _fund_flow() -> tuple[list[FundFlow], list[FundFlow]]:
     return ind, con
 
 
+def _parse_money(s) -> float | None:
+    """'1.08亿'→1.08, '941.88万'→0.0094, '-5.2亿'→-5.2, '123456'(元)→0.0012 —— 单位亿元。"""
+    s = str(s).strip().replace(",", "")
+    if not s or s in ("-", "nan", "None"):
+        return None
+    neg = s.startswith("-")
+    s = s.lstrip("-+")
+    try:
+        if s.endswith("亿"):
+            v = float(s[:-1])
+        elif s.endswith("万"):
+            v = float(s[:-1]) / 1e4
+        else:
+            v = float(s) / 1e8
+    except ValueError:
+        return None
+    return -v if neg else v
+
+
+def _industry_map() -> dict:
+    """{股票代码: 新浪行业名};遍历新浪行业成分(可达),缓存 24h。"""
+    global _IND_MAP
+    if _IND_MAP and time.time() - _IND_MAP[0] < _IND_MAP_TTL:
+        return _IND_MAP[1]
+    import akshare as ak
+
+    m: dict[str, str] = {}
+    try:
+        sp = ak.stock_sector_spot(indicator="新浪行业")
+        cols = list(sp.columns)
+        for _, r in sp.iterrows():
+            label, ind = str(r[cols[0]]), str(r[cols[1]])
+            try:
+                d = ak.stock_sector_detail(sector=label)
+                for code in d["code"]:
+                    m[re.sub(r"\D", "", str(code))] = ind
+            except Exception:
+                continue
+    except Exception as e:
+        log.warning("industry map failed: %s", e)
+    if m:
+        _IND_MAP = (time.time(), m)
+    return m
+
+
+def _build_flow_sankeys() -> tuple["Sankey | None", "Sankey | None"]:
+    import akshare as ak
+
+    imap = _industry_map()
+    if not imap:
+        return None, None
+    df = ak.stock_fund_flow_individual(symbol="即时")  # ~18s, all A-shares net flow
+    ind_net: dict[str, float] = {}
+    ind_stocks: dict[str, list] = {}
+    for _, r in df.iterrows():
+        code = re.sub(r"\D", "", str(r.get("股票代码")))
+        ind = imap.get(code)
+        net = _parse_money(r.get("净额"))
+        if not ind or net is None:
+            continue
+        ind_net[ind] = ind_net.get(ind, 0.0) + net
+        ind_stocks.setdefault(ind, []).append((str(r.get("股票简称")), net))
+
+    def build(direction: int) -> "Sankey | None":
+        root = "今日资金流入" if direction > 0 else "今日资金流出"
+        inds = [(i, v) for i, v in ind_net.items() if v * direction > 0]
+        inds.sort(key=lambda kv: kv[1] * direction, reverse=True)
+        nodes = [SankeyNode(name=root, kind="root")]
+        links: list[SankeyLink] = []
+        for ind, _ in inds[:7]:
+            stocks = [(n, v) for n, v in ind_stocks[ind] if v * direction > 0]
+            stocks.sort(key=lambda x: x[1] * direction, reverse=True)
+            stocks = stocks[:3]
+            if not stocks:
+                continue
+            ii = len(nodes)
+            nodes.append(SankeyNode(name=ind, kind="industry"))
+            links.append(SankeyLink(source=0, target=ii, value=round(sum(abs(v) for _, v in stocks), 2)))
+            for n, v in stocks:
+                si = len(nodes)
+                nodes.append(SankeyNode(name=n, kind="stock"))
+                links.append(SankeyLink(source=ii, target=si, value=round(abs(v), 2)))
+        return Sankey(nodes=nodes, links=links) if len(nodes) > 1 else None
+
+    return build(1), build(-1)
+
+
+def _refresh_flow() -> None:
+    global _FLOW_CACHE, _flow_refreshing
+    try:
+        _FLOW_CACHE = (time.time(), _build_flow_sankeys())
+    except Exception as e:
+        log.warning("flow sankeys failed: %s", e)
+    finally:
+        _flow_refreshing = False
+
+
+def _get_flow_sankeys() -> tuple["Sankey | None", "Sankey | None"]:
+    global _flow_refreshing
+    now = time.time()
+    if _FLOW_CACHE and now - _FLOW_CACHE[0] < _FLOW_TTL:
+        return _FLOW_CACHE[1]
+    if _FLOW_CACHE:  # stale → serve stale, refresh in background (non-blocking)
+        with _flow_lock:
+            if not _flow_refreshing:
+                _flow_refreshing = True
+                threading.Thread(target=_refresh_flow, daemon=True).start()
+        return _FLOW_CACHE[1]
+    # cold → build synchronously in this worker thread (akshare works here, like
+    # _fund_flow); ~20s the first time only, then cached.
+    with _flow_lock:
+        if _FLOW_CACHE:
+            return _FLOW_CACHE[1]
+        _flow_refreshing = True
+    _refresh_flow()
+    return _FLOW_CACHE[1] if _FLOW_CACHE else (None, None)
+
+
+def warm_flow() -> None:
+    """Prime the net-flow Sankeys at startup (heavy: industry map + individual flow)."""
+    global _flow_refreshing
+    _flow_refreshing = True
+    _refresh_flow()
+
+
 def get_hotspot() -> Hotspot:
     global _CACHE
     if _CACHE and time.time() - _CACHE[0] < _TTL:
@@ -345,26 +482,6 @@ def get_hotspot() -> Hotspot:
             HotSector(name=k, limit_ups=v["n"], seal_fund=v["seal"], leaders=v["names"])
             for k, v in sorted(agg.items(), key=lambda kv: (kv[1]["n"], kv[1]["seal"]), reverse=True)[:8]
         ]
-        # 桑基下钻:打板抢筹 → 行业 → 涨停个股(封板资金,亿元,守恒)。
-        by_ind: dict[str, list] = {}
-        for x in rows:
-            if x["seal"]:
-                by_ind.setdefault(x["ind"] or "其他", []).append(x)
-        top_ind = sorted(by_ind.items(), key=lambda kv: sum(s["seal"] or 0 for s in kv[1]), reverse=True)[:6]
-        if top_ind:
-            nodes = [SankeyNode(name="打板抢筹", kind="root")]
-            links: list[SankeyLink] = []
-            for ind_name, stocks in top_ind:
-                stocks = sorted(stocks, key=lambda s: s["seal"] or 0, reverse=True)[:3]
-                ind_idx = len(nodes)
-                nodes.append(SankeyNode(name=ind_name, kind="industry"))
-                links.append(SankeyLink(source=0, target=ind_idx,
-                                        value=round(sum((s["seal"] or 0) for s in stocks) / 1e8, 2)))
-                for s in stocks:
-                    st_idx = len(nodes)
-                    nodes.append(SankeyNode(name=s["name"], kind="stock"))
-                    links.append(SankeyLink(source=ind_idx, target=st_idx, value=round((s["seal"] or 0) / 1e8, 2)))
-            hs.sankey = Sankey(nodes=nodes, links=links)
 
     spot = None
     try:
@@ -380,6 +497,10 @@ def get_hotspot() -> Hotspot:
         hs.flow_industry, hs.flow_concept = _fund_flow()
     except Exception as e:
         log.warning("hotspot fund flow failed: %s", e)
+    try:
+        hs.sankey_in, hs.sankey_out = _get_flow_sankeys()
+    except Exception as e:
+        log.warning("hotspot flow sankeys failed: %s", e)
 
     # History-backed features: 量能加速 + 主线持续天数 (bootstraps over days).
     try:
