@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Sankey, Layer, Rectangle, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
 import { fetchHotspot, type FundFlow, type Hotspot } from "@/lib/api";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
@@ -123,6 +124,13 @@ export default function HotspotPage() {
                 <FlowList title={t("hot.flowIndustry")} rows={d.flow_industry} />
                 <FlowList title={t("hot.flowConcept")} rows={d.flow_concept} />
               </div>
+            </Panel>
+          )}
+
+          {/* 桑基下钻:打板抢筹 → 行业 → 个股 */}
+          {d.sankey && d.sankey.links.length > 0 && (
+            <Panel title={t("hot.sankey")} hint={t("hot.sankeyHint")}>
+              <HotspotSankey data={d.sankey} />
             </Panel>
           )}
 
@@ -246,6 +254,38 @@ function HotspotReview({ nonce, language }: { nonce: number; language: Lang }) {
       </div>
       {error ? <div className="text-sm text-bear">{error}</div>
         : <div className="prose-tight max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>}
+    </div>
+  );
+}
+
+function SankeyNodeShape(props: any) {
+  const { x, y, width, height, index, payload, containerWidth } = props;
+  const fill = payload.kind === "root" ? "hsl(var(--theme-accent))" : payload.kind === "industry" ? "#ef4444" : "#6f89f6";
+  const isRight = x + width + 6 > containerWidth;
+  return (
+    <Layer key={`n${index}`}>
+      <Rectangle x={x} y={y} width={width} height={height} fill={fill} fillOpacity={0.9} />
+      <text x={isRight ? x - 6 : x + width + 6} y={y + height / 2} textAnchor={isRight ? "end" : "start"}
+        dominantBaseline="middle" fontSize={11} fill="hsl(var(--theme-body))">
+        {payload.name}{payload.value ? ` ${Number(payload.value).toFixed(1)}亿` : ""}
+      </text>
+    </Layer>
+  );
+}
+
+function HotspotSankey({ data }: { data: { nodes: { name: string; kind: string }[]; links: { source: number; target: number; value: number }[] } }) {
+  const leaves = data.nodes.filter((n) => n.kind === "stock").length || 6;
+  const height = Math.max(320, leaves * 26 + 24);
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: 540 }}>
+        <ResponsiveContainer width="100%" height={height}>
+          <Sankey data={data} node={<SankeyNodeShape />} nodePadding={16} nodeWidth={10}
+            link={{ stroke: "#ef4444", strokeOpacity: 0.18 }} margin={{ top: 10, bottom: 10, left: 6, right: 76 }}>
+            <RTooltip contentStyle={{ background: "hsl(var(--theme-chart-tooltip))", border: "1px solid hsl(var(--theme-chart-grid))", borderRadius: 8, fontSize: 12 }} />
+          </Sankey>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

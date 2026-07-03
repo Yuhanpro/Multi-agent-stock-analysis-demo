@@ -71,6 +71,22 @@ class FundFlow(BaseModel):
     num: int | None = None
 
 
+class SankeyNode(BaseModel):
+    name: str
+    kind: str = ""   # root / industry / stock
+
+
+class SankeyLink(BaseModel):
+    source: int
+    target: int
+    value: float     # 亿元
+
+
+class Sankey(BaseModel):
+    nodes: list[SankeyNode] = []
+    links: list[SankeyLink] = []
+
+
 class Mover(BaseModel):
     code: str
     name: str
@@ -91,6 +107,7 @@ class Hotspot(BaseModel):
     accel_days: int = 0               # 已积累的历史天数(不足则加速榜为空)
     flow_industry: list[FundFlow] = []  # 行业资金净流入榜(同花顺)
     flow_concept: list[FundFlow] = []   # 概念/题材资金净流入榜(同花顺)
+    sankey: Sankey | None = None      # 打板抢筹 → 行业 → 涨停个股(封板资金,守恒)
     sectors: list[HotSector] = []     # 领涨行业(新浪)
     updated: str = ""
     note: str = "客观行情统计,非荐股、不构成投资建议"
@@ -328,6 +345,26 @@ def get_hotspot() -> Hotspot:
             HotSector(name=k, limit_ups=v["n"], seal_fund=v["seal"], leaders=v["names"])
             for k, v in sorted(agg.items(), key=lambda kv: (kv[1]["n"], kv[1]["seal"]), reverse=True)[:8]
         ]
+        # 桑基下钻:打板抢筹 → 行业 → 涨停个股(封板资金,亿元,守恒)。
+        by_ind: dict[str, list] = {}
+        for x in rows:
+            if x["seal"]:
+                by_ind.setdefault(x["ind"] or "其他", []).append(x)
+        top_ind = sorted(by_ind.items(), key=lambda kv: sum(s["seal"] or 0 for s in kv[1]), reverse=True)[:6]
+        if top_ind:
+            nodes = [SankeyNode(name="打板抢筹", kind="root")]
+            links: list[SankeyLink] = []
+            for ind_name, stocks in top_ind:
+                stocks = sorted(stocks, key=lambda s: s["seal"] or 0, reverse=True)[:3]
+                ind_idx = len(nodes)
+                nodes.append(SankeyNode(name=ind_name, kind="industry"))
+                links.append(SankeyLink(source=0, target=ind_idx,
+                                        value=round(sum((s["seal"] or 0) for s in stocks) / 1e8, 2)))
+                for s in stocks:
+                    st_idx = len(nodes)
+                    nodes.append(SankeyNode(name=s["name"], kind="stock"))
+                    links.append(SankeyLink(source=ind_idx, target=st_idx, value=round((s["seal"] or 0) / 1e8, 2)))
+            hs.sankey = Sankey(nodes=nodes, links=links)
 
     spot = None
     try:

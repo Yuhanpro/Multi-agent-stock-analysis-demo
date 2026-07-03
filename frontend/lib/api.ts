@@ -379,11 +379,15 @@ export interface HotSector { name: string; change_pct: number | null; amount: nu
 export interface Mover { code: string; name: string; change_pct: number | null; amount: number | null; }
 export interface Accel { code: string; name: string; change_pct: number | null; amount: number | null; ratio: number | null; }
 export interface FundFlow { name: string; net: number | null; inflow: number | null; change_pct: number | null; leader: string | null; num: number | null; }
+export interface SankeyNode { name: string; kind: string; }
+export interface SankeyLink { source: number; target: number; value: number; }
+export interface SankeyData { nodes: SankeyNode[]; links: SankeyLink[]; }
 export interface Hotspot {
   date: string | null; zt_count: number; broke_count: number; max_boards: number;
   ladder: Ladder[]; seal_rank: HotStock[]; directions: HotSector[]; movers: Mover[];
   accel: Accel[]; accel_days: number;
   flow_industry: FundFlow[]; flow_concept: FundFlow[];
+  sankey: SankeyData | null;
   sectors: HotSector[];
   updated: string; note: string;
 }
