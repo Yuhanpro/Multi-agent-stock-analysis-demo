@@ -131,43 +131,45 @@ def _scalar(sql: str, params: tuple = ()) -> int:
 
 
 def get_stats() -> Stats:
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # Bucket all day-level metrics by Beijing time (UTC+8) — the audience is
+    # mainland China, and the hourly chart already uses +8; keep them consistent.
+    _bj_now = datetime.now(timezone.utc) + timedelta(hours=8)
+    today = _bj_now.strftime("%Y-%m-%d")
     s = Stats(
         total_views=_scalar("SELECT COUNT(*) FROM events"),
-        today_views=_scalar("SELECT COUNT(*) FROM events WHERE substr(created_at,1,10)=?", (today,)),
+        today_views=_scalar("SELECT COUNT(*) FROM events WHERE substr(datetime(created_at,'+8 hours'),1,10)=?", (today,)),
         total_visitors=_scalar("SELECT COUNT(DISTINCT anon_id) FROM events"),
-        today_visitors=_scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10)=?", (today,)),
+        today_visitors=_scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(datetime(created_at,'+8 hours'),1,10)=?", (today,)),
         total_users=_scalar("SELECT COUNT(*) FROM users WHERE email NOT LIKE 'anon:%'"),
     )
     # True distinct visitors over the trailing 7 / 30 days (can't be derived from
     # summed daily uniques — that would double-count multi-day visitors).
-    _d7 = (datetime.now(timezone.utc) - timedelta(days=6)).strftime("%Y-%m-%d")
-    _d30 = (datetime.now(timezone.utc) - timedelta(days=29)).strftime("%Y-%m-%d")
-    s.visitors_7d = _scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10) >= ?", (_d7,))
-    s.visitors_30d = _scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(created_at,1,10) >= ?", (_d30,))
+    _d7 = (_bj_now - timedelta(days=6)).strftime("%Y-%m-%d")
+    _d30 = (_bj_now - timedelta(days=29)).strftime("%Y-%m-%d")
+    s.visitors_7d = _scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(datetime(created_at,'+8 hours'),1,10) >= ?", (_d7,))
+    s.visitors_30d = _scalar("SELECT COUNT(DISTINCT anon_id) FROM events WHERE substr(datetime(created_at,'+8 hours'),1,10) >= ?", (_d30,))
     s.top_paths = [
         PathHit(path=r["path"], count=r["c"])
         for r in db.query_all("SELECT path, COUNT(*) AS c FROM events GROUP BY path ORDER BY c DESC LIMIT 12")
     ]
     # 30-day daily series with every metric (events + reports + users), zero-filled
     # so the chart/period table have a continuous history, newest first.
-    now = datetime.now(timezone.utc)
-    day_list = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
+    day_list = [(_bj_now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
     ev = {r["d"]: (r["v"], r["u"]) for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS v, COUNT(DISTINCT anon_id) AS u FROM events GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS v, COUNT(DISTINCT anon_id) AS u FROM events GROUP BY d")}
     rp = {r["d"]: r["c"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM reports GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM reports GROUP BY d")}
     rc = {r["d"]: r["cost"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COALESCE(SUM(cost_usd),0) AS cost FROM runs GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COALESCE(SUM(cost_usd),0) AS cost FROM runs GROUP BY d")}
     # Completed analyses split by login (runs.user_id: real user vs anonymous).
     rs = {r["d"]: r["c"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM runs WHERE user_id IS NOT NULL GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM runs WHERE user_id IS NOT NULL GROUP BY d")}
     ra = {r["d"]: r["c"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM runs WHERE user_id IS NULL GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM runs WHERE user_id IS NULL GROUP BY d")}
     an = {r["d"]: r["c"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM events WHERE path LIKE 'run:%' GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM events WHERE path LIKE 'run:%' GROUP BY d")}
     su = {r["d"]: r["c"] for r in db.query_all(
-        "SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d")}
+        "SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d")}
     s.daily = [
         DailyPoint(
             date=d,
@@ -218,12 +220,12 @@ def get_stats() -> Stats:
     # time, UTC+8), and per-user activity.
     s.new_today = _scalar(
         "SELECT COUNT(*) FROM (SELECT anon_id, MIN(created_at) AS m FROM events GROUP BY anon_id) "
-        "WHERE substr(m,1,10) = ?", (today,),
+        "WHERE substr(datetime(m,'+8 hours'),1,10) = ?", (today,),
     )
     s.returning_today = max(0, s.today_visitors - s.new_today)
     s.signups_daily = [
         SignupPoint(date=r["d"], count=r["c"])
-        for r in db.query_all("SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d ORDER BY d DESC LIMIT 14")
+        for r in db.query_all("SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d ORDER BY d DESC LIMIT 14")
     ]
     hours = {int(r["h"]): r["c"] for r in db.query_all(
         "SELECT (CAST(substr(created_at,12,2) AS INTEGER)+8)%24 AS h, COUNT(*) AS c FROM events GROUP BY h"
