@@ -160,6 +160,15 @@ function periodMetrics(stats: AdminStats, period: Period) {
   return { m, delta, hasDelta: true };
 }
 
+// 回访 = 回头客(累计到访≥2天且在窗口内活跃),按周期取对应值。
+function returningBy(stats: AdminStats, period: Period): number {
+  if (period === "yesterday") return stats.returning_yesterday;
+  if (period === "7d") return stats.returning_7d;
+  if (period === "30d") return stats.returning_30d;
+  if (period === "total") return stats.returning_total;
+  return stats.returning_today;
+}
+
 function Overview({ stats }: { stats: AdminStats }) {
   const { t, lang } = useT();
   const zh = lang === "zh";
@@ -187,7 +196,7 @@ function Overview({ stats }: { stats: AdminStats }) {
         <Kpi label={t("admin.visitors")} value={m.visitors} delta={delta.visitors} />
         <Kpi label={t("admin.perVisitor")} value={per(m.views, m.visitors).toFixed(1)} />
         <Kpi label={t("admin.new")} value={m.new_visitors} delta={delta.new_visitors} />
-        <Kpi label={t("admin.returning")} value={period === "total" ? "—" : Math.max(0, m.visitors - m.new_visitors)} muted={period === "total"} />
+        <Kpi label={t("admin.returning")} value={returningBy(stats, period)} note={t("admin.repeatNote")} />
       </Section>
 
       <Section title={t("admin.sec.users")}>

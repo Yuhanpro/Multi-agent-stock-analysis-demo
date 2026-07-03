@@ -430,6 +430,10 @@ export interface AdminStats {
   invites_active: number;
   new_today: number;
   returning_today: number;
+  returning_yesterday: number;
+  returning_7d: number;
+  returning_30d: number;
+  returning_total: number;
   signups_daily: SignupPoint[];
   hourly: HourPoint[];
   top_users: UserActivity[];

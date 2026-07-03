@@ -81,7 +81,12 @@ class Stats(BaseModel):
     invites_active: int = 0
     # audience
     new_today: int = 0
+    # 回访 = 回头客:在该窗口内活跃、且累计到访 ≥2 个不同日期的访客。
     returning_today: int = 0
+    returning_yesterday: int = 0
+    returning_7d: int = 0
+    returning_30d: int = 0
+    returning_total: int = 0
     signups_daily: list[SignupPoint] = []
     hourly: list[HourPoint] = []
     top_users: list[UserActivity] = []   # signed-in accounts
@@ -229,7 +234,17 @@ def get_stats() -> Stats:
         "SELECT COUNT(*) FROM (SELECT anon_id, MIN(created_at) AS m FROM events GROUP BY anon_id) "
         "WHERE substr(datetime(m,'+8 hours'),1,10) = ?", (today,),
     )
-    s.returning_today = max(0, s.today_visitors - s.new_today)
+    # 回访 = 回头客:累计到访 ≥2 个不同(北京)日,且在该窗口内仍活跃。随窗口单调,
+    # 不会像"窗口访客−窗口新访客"那样在新站上出现 近30天=0 的悖论。
+    _yest = (_bj_now - timedelta(days=1)).strftime("%Y-%m-%d")
+    _multi = ("anon_id IN (SELECT anon_id FROM events GROUP BY anon_id "
+              "HAVING COUNT(DISTINCT substr(datetime(created_at,'+8 hours'),1,10)) >= 2)")
+    _bj = "substr(datetime(created_at,'+8 hours'),1,10)"
+    s.returning_total = _scalar(f"SELECT COUNT(DISTINCT anon_id) FROM events WHERE {_multi}")
+    s.returning_30d = _scalar(f"SELECT COUNT(DISTINCT anon_id) FROM events WHERE {_multi} AND {_bj} >= ?", (_d30,))
+    s.returning_7d = _scalar(f"SELECT COUNT(DISTINCT anon_id) FROM events WHERE {_multi} AND {_bj} >= ?", (_d7,))
+    s.returning_today = _scalar(f"SELECT COUNT(DISTINCT anon_id) FROM events WHERE {_multi} AND {_bj} = ?", (today,))
+    s.returning_yesterday = _scalar(f"SELECT COUNT(DISTINCT anon_id) FROM events WHERE {_multi} AND {_bj} = ?", (_yest,))
     s.signups_daily = [
         SignupPoint(date=r["d"], count=r["c"])
         for r in db.query_all("SELECT substr(datetime(created_at,'+8 hours'),1,10) AS d, COUNT(*) AS c FROM users WHERE email NOT LIKE 'anon:%' GROUP BY d ORDER BY d DESC LIMIT 14")
