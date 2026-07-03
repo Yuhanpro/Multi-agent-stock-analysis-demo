@@ -61,6 +61,16 @@ class Accel(BaseModel):
     ratio: float | None = None      # 今日额 / 近数日均额(量能加速倍数)
 
 
+class FundFlow(BaseModel):
+    """真·资金流向(同花顺):行业/概念的主力净流入,单位亿元。"""
+    name: str
+    net: float | None = None        # 净额 亿元(正=净流入)
+    inflow: float | None = None     # 流入资金 亿元
+    change_pct: float | None = None # decimal
+    leader: str | None = None
+    num: int | None = None
+
+
 class Mover(BaseModel):
     code: str
     name: str
@@ -79,6 +89,8 @@ class Hotspot(BaseModel):
     movers: list[Mover] = []          # 放量涨幅榜
     accel: list[Accel] = []           # 量能加速榜
     accel_days: int = 0               # 已积累的历史天数(不足则加速榜为空)
+    flow_industry: list[FundFlow] = []  # 行业资金净流入榜(同花顺)
+    flow_concept: list[FundFlow] = []   # 概念/题材资金净流入榜(同花顺)
     sectors: list[HotSector] = []     # 领涨行业(新浪)
     updated: str = ""
     note: str = "客观行情统计,非荐股、不构成投资建议"
@@ -234,6 +246,40 @@ def _apply_streaks(directions: list[HotSector], date: str) -> None:
         x.days = streak if streak else 1  # today counts even before it's persisted
 
 
+def _fund_flow() -> tuple[list[FundFlow], list[FundFlow]]:
+    """真·资金流向(同花顺,VPS 可达):行业 + 概念的主力净流入(亿元)。"""
+    import akshare as ak
+    import pandas as pd
+
+    def top(fn, n: int = 12) -> list[FundFlow]:
+        try:
+            df = fn()
+        except Exception as e:
+            log.warning("fund flow fetch failed: %s", e)
+            return []
+        if df is None or getattr(df, "empty", True) or "净额" not in df.columns:
+            return []
+        d = df.copy()
+        d["_net"] = pd.to_numeric(d["净额"], errors="coerce")
+        d = d.sort_values("_net", ascending=False).head(n)
+        out: list[FundFlow] = []
+        for _, r in d.iterrows():
+            chg = _safe_float(r.get("行业-涨跌幅"))
+            out.append(FundFlow(
+                name=str(r.get("行业")),
+                net=_safe_float(r.get("净额")),
+                inflow=_safe_float(r.get("流入资金")),
+                change_pct=(chg / 100) if chg is not None else None,
+                leader=str(r.get("领涨股") or "") or None,
+                num=int(_safe_float(r.get("公司家数")) or 0) or None,
+            ))
+        return out
+
+    ind = top(lambda: ak.stock_fund_flow_industry(symbol="即时"))
+    con = top(lambda: ak.stock_fund_flow_concept(symbol="即时"))
+    return ind, con
+
+
 def get_hotspot() -> Hotspot:
     global _CACHE
     if _CACHE and time.time() - _CACHE[0] < _TTL:
@@ -293,6 +339,10 @@ def get_hotspot() -> Hotspot:
     except Exception as e:
         log.warning("hotspot movers failed: %s", e)
     hs.sectors = _sectors()
+    try:
+        hs.flow_industry, hs.flow_concept = _fund_flow()
+    except Exception as e:
+        log.warning("hotspot fund flow failed: %s", e)
 
     # History-backed features: 量能加速 + 主线持续天数 (bootstraps over days).
     try:

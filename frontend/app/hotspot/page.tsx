@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fetchHotspot, type Hotspot } from "@/lib/api";
+import { fetchHotspot, type FundFlow, type Hotspot } from "@/lib/api";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/format";
@@ -115,6 +115,16 @@ export default function HotspotPage() {
               ))}
             </span>
           </div>
+
+          {/* 资金流向(真实净流入,同花顺) */}
+          {(d.flow_industry.length > 0 || d.flow_concept.length > 0) && (
+            <Panel title={t("hot.flow")} hint={t("hot.flowHint")}>
+              <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
+                <FlowList title={t("hot.flowIndustry")} rows={d.flow_industry} />
+                <FlowList title={t("hot.flowConcept")} rows={d.flow_concept} />
+              </div>
+            </Panel>
+          )}
 
           {/* 资金方向 */}
           <Panel title={t("hot.directions")} hint={t("hot.directionsHint")}>
@@ -236,6 +246,32 @@ function HotspotReview({ nonce, language }: { nonce: number; language: Lang }) {
       </div>
       {error ? <div className="text-sm text-bear">{error}</div>
         : <div className="prose-tight max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>}
+    </div>
+  );
+}
+
+function FlowList({ title, rows }: { title: string; rows: FundFlow[] }) {
+  const max = Math.max(...rows.map((r) => Math.abs(r.net ?? 0)), 1);
+  return (
+    <div>
+      <div className="mb-2 text-xs font-semibold text-muted">{title}</div>
+      <div className="space-y-1.5">
+        {rows.map((r, i) => {
+          const pos = (r.net ?? 0) >= 0;
+          return (
+            <div key={r.name} className="flex items-center gap-2 text-xs">
+              <span className="w-4 shrink-0 text-muted">{i + 1}</span>
+              <span className="w-24 shrink-0 truncate text-heading" title={r.name}>{r.name}</span>
+              <div className="relative h-4 flex-1 overflow-hidden rounded bg-bg/40">
+                <div className={cn("h-full rounded", pos ? "bg-[#ef4444]/70" : "bg-bull/60")} style={{ width: `${(Math.abs(r.net ?? 0) / max) * 100}%` }} />
+              </div>
+              <span className={cn("w-16 shrink-0 text-right font-semibold tabular-nums", pos ? HOT : "text-bull")}>
+                {pos ? "+" : ""}{(r.net ?? 0).toFixed(1)}亿
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

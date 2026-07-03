@@ -707,6 +707,12 @@ def _format_hotspot_for_prompt(hs) -> str:
     if hs.movers:
         parts.append("- 放量涨幅榜:" + "、".join(
             f"{m.name}(+{(m.change_pct or 0)*100:.1f}%,{yi(m.amount)})" for m in hs.movers[:10]))
+    if getattr(hs, "flow_industry", None):
+        parts.append("- 行业资金净流入榜(同花顺·亿元):" + "、".join(
+            f"{x.name}({x.net:+.1f}亿)" for x in hs.flow_industry[:8] if x.net is not None))
+    if getattr(hs, "flow_concept", None):
+        parts.append("- 概念/题材资金净流入榜(亿元):" + "、".join(
+            f"{x.name}({x.net:+.1f}亿)" for x in hs.flow_concept[:8] if x.net is not None))
     if hs.accel:
         parts.append("- 量能加速榜(今日额/近数日均额):" + "、".join(
             f"{a.name}(×{a.ratio})" for a in hs.accel[:10]))
