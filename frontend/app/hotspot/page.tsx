@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fetchHotspot, type Hotspot } from "@/lib/api";
@@ -45,6 +46,9 @@ export default function HotspotPage() {
             <span className="text-sm font-semibold">{t("nav.hotspot")}</span>
           </div>
           <p className="max-w-2xl text-sm leading-6 text-body">{t("hot.lead")}</p>
+          <Link href="/overview" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
+            {t("hot.toOverview")} <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
         <button onClick={() => setNonce((n) => n + 1)} className="mt-1 shrink-0 text-muted hover:text-heading" aria-label="refresh">
           <RefreshCw className="h-4 w-4" />
@@ -176,18 +180,6 @@ export default function HotspotPage() {
                 ))}
               </div>
             )}
-          </Panel>
-
-          {/* 领涨行业 */}
-          <Panel title={t("hot.sectors")}>
-            <div className="flex flex-wrap gap-2">
-              {d.sectors.map((s) => (
-                <span key={s.name} className="rounded-lg border border-border bg-bg/40 px-2.5 py-1 text-xs">
-                  <span className="text-heading">{s.name}</span> <span className={HOT}>+{pct(s.change_pct)}</span>
-                  {s.leaders[0] && <span className="text-muted"> · {s.leaders[0]}</span>}
-                </span>
-              ))}
-            </div>
           </Panel>
 
           {/* AI 复盘 */}

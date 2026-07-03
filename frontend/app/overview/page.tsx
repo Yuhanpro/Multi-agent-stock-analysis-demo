@@ -97,6 +97,11 @@ export default function OverviewPage() {
         {mod === "market" && (
           <p className="text-[11px] leading-4 text-muted/70">{market === "CN" ? t("ov.proxy") : t("ov.ushkNote")}</p>
         )}
+        {market === "CN" && (
+          <Link href="/hotspot" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
+            {t("ov.toHotspot")} <TrendingUp className="h-3 w-3" />
+          </Link>
+        )}
       </header>
 
       {loading ? (
