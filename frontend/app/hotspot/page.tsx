@@ -38,7 +38,7 @@ export default function HotspotPage() {
   }, [nonce]);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-accent">
@@ -107,7 +107,7 @@ export default function HotspotPage() {
             <span className="text-body"><b className={HOT}>{d.zt_count}</b> {t("hot.zt")}</span>
             <span className="text-body"><b className="text-heading">{d.broke_count}</b> {t("hot.broke")}</span>
             <span className="text-body">{t("hot.maxBoards")} <b className={HOT}>{d.max_boards}</b></span>
-            <span className="ml-auto flex flex-wrap gap-1.5">
+            <span className="flex basis-full flex-wrap gap-1.5 sm:ml-auto sm:basis-auto">
               {[...d.ladder].reverse().map((l) => (
                 <span key={l.boards} className="rounded-md border border-border bg-bg/40 px-2 py-0.5 text-xs">
                   <b className={HOT}>{l.boards >= 2 ? `${l.boards}板` : "首板"}</b> <span className="text-muted">{l.count}</span>

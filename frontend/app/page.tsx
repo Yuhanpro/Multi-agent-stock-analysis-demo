@@ -111,8 +111,8 @@ export default function Page() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <header className="space-y-7">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <header className="space-y-5 sm:space-y-7">
         <div className="flex items-center gap-2 text-accent">
           <Activity className="h-4 w-4" />
           <span className="text-sm font-semibold text-accent">{t("hero.eyebrow")}</span>
