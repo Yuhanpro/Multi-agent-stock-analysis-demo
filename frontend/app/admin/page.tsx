@@ -192,7 +192,7 @@ function Overview({ stats }: { stats: AdminStats }) {
 
       <Section title={t("admin.sec.users")}>
         <Kpi label={t("admin.signups")} value={m.signups} delta={delta.signups} />
-        <Kpi label={t("admin.users")} value={stats.total_users} />
+        <Kpi label={t("admin.users")} value={stats.total_users} note={t("admin.cumulative")} />
         <Kpi label={t("admin.conv")} value={`${(per(m.signups, m.visitors) * 100).toFixed(1)}%`} />
         <Kpi label={t("admin.invUsed")} value={`${stats.invites_used}/${stats.invites_total}`} note={`${stats.invites_active} ${t("admin.invActive")}`} />
       </Section>
@@ -208,7 +208,7 @@ function Overview({ stats }: { stats: AdminStats }) {
       <Section title={t("admin.sec.cost")} hint={t("admin.costHint")}>
         <Kpi label={t("admin.cost")} value={money(m.cost)} delta={delta.cost} deltaNeutral />
         <Kpi label={t("admin.costPerRun")} value={`$${per(m.cost, m.runs_signed + m.runs_anon).toFixed(4)}`} />
-        <Kpi label={t("admin.costPerUser")} value={`$${per(stats.cost_total, stats.total_users).toFixed(3)}`} />
+        <Kpi label={t("admin.costPerUser")} value={`$${per(stats.cost_total, stats.total_users).toFixed(3)}`} note={t("admin.cumulative")} />
       </Section>
 
       <PeriodTable stats={stats} />
