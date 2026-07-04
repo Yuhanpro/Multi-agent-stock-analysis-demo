@@ -395,6 +395,13 @@ export async function fetchHotspot(): Promise<Hotspot> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/hotspot`));
 }
 
+export interface FlowStock { code: string; name: string; net: number | null; price: number | null; change_pct: number | null; }
+export interface FlowIndustry { name: string; net: number; count: number; stocks: FlowStock[]; }
+export interface FlowDrill { industries: FlowIndustry[]; updated: string; note: string; }
+export async function fetchFlowDrill(): Promise<FlowDrill> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/flow-drill`));
+}
+
 export interface UsSectorFlow { symbol: string; name: string; change_pct: number | null; amount: number | null; vol_ratio: number | null; date: string | null; }
 export interface HkSouthbound { board: string; net_buy: number | null; date: string | null; }
 export interface GlobalFlow {

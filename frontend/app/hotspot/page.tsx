@@ -6,7 +6,7 @@ import { ArrowRight, CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "l
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Sankey, Layer, Rectangle, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
-import { fetchGlobalFlow, fetchHotspot, type FundFlow, type GlobalFlow, type Hotspot, type UsSectorFlow } from "@/lib/api";
+import { fetchFlowDrill, fetchGlobalFlow, fetchHotspot, type FlowDrill, type FundFlow, type GlobalFlow, type Hotspot, type UsSectorFlow } from "@/lib/api";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/format";
@@ -34,10 +34,12 @@ export default function HotspotPage() {
   const [err, setErr] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const [reviewOn, setReviewOn] = useState(0);
+  const [drill, setDrill] = useState<FlowDrill | null>(null);
   useEffect(() => {
     setErr(null);
     fetchHotspot().then(setD).catch((e) => setErr(e.message));
     fetchGlobalFlow().then(setGf).catch(() => setGf(null)); // best-effort, never blocks the CN page
+    fetchFlowDrill().then(setDrill).catch(() => setDrill(null));
   }, [nonce]);
 
   return (
@@ -138,6 +140,13 @@ export default function HotspotPage() {
           {d.sankey_out && d.sankey_out.links.length > 0 && (
             <Panel title={t("hot.sankeyOut")} hint={t("hot.sankeyHintOut")}>
               <HotspotSankey data={d.sankey_out} out />
+            </Panel>
+          )}
+
+          {/* 资金下钻:点击行业 → 该行业个股真实净流入 */}
+          {drill && drill.industries.length > 0 && (
+            <Panel title={`${t("hot.drill")} · ${drill.updated}`} hint={t("hot.drillHint")}>
+              <FlowDrillView data={drill} ofLabel={t("hot.drillOf")} netLabel={t("hot.drillNet")} />
             </Panel>
           )}
 
@@ -362,6 +371,72 @@ function FlowList({ title, rows }: { title: string; rows: FundFlow[] }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function FlowDrillView({ data, ofLabel, netLabel }: { data: FlowDrill; ofLabel: string; netLabel: string }) {
+  const [sel, setSel] = useState(data.industries[0]?.name ?? "");
+  const cur = data.industries.find((i) => i.name === sel) ?? data.industries[0];
+  const maxInd = Math.max(...data.industries.map((i) => Math.abs(i.net)), 0.01);
+  const maxStk = Math.max(...(cur?.stocks.map((s) => Math.abs(s.net ?? 0)) ?? []), 0.01);
+  return (
+    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+      {/* 行业列表(可点击) */}
+      <div className="max-h-80 space-y-0.5 overflow-y-auto pr-1">
+        {data.industries.map((i) => {
+          const pos = i.net >= 0;
+          const active = i.name === cur?.name;
+          return (
+            <button
+              key={i.name}
+              onClick={() => setSel(i.name)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors",
+                active ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-border/30"
+              )}
+            >
+              <span className={cn("w-20 shrink-0 truncate", active ? "font-semibold text-heading" : "text-heading")}>{i.name}</span>
+              <div className="relative h-3 flex-1 overflow-hidden rounded bg-bg/40">
+                <div className={cn("h-full rounded", pos ? "bg-[#ef4444]/70" : "bg-bull/60")} style={{ width: `${(Math.abs(i.net) / maxInd) * 100}%` }} />
+              </div>
+              <span className={cn("w-14 shrink-0 text-right font-semibold tabular-nums", pos ? HOT : "text-bull")}>
+                {pos ? "+" : ""}{i.net.toFixed(1)}亿
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {/* 选中行业的个股明细 */}
+      {cur && (
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="text-sm font-semibold text-heading">{cur.name}</span>
+            <span className="text-muted">{netLabel} <b className={cn("tabular-nums", cur.net >= 0 ? HOT : "text-bull")}>{cur.net >= 0 ? "+" : ""}{cur.net.toFixed(1)}亿</b></span>
+            <span className="text-muted">{cur.count} {ofLabel}</span>
+          </div>
+          <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+            {cur.stocks.map((s) => {
+              const pos = (s.net ?? 0) >= 0;
+              return (
+                <div key={s.code} className="flex items-center gap-2 text-xs">
+                  <span className="w-20 shrink-0 truncate text-heading" title={s.code}>{s.name}</span>
+                  <span className="hidden w-12 shrink-0 font-mono text-[10px] text-muted sm:inline">{s.code}</span>
+                  <span className={cn("w-12 shrink-0 text-right tabular-nums", (s.change_pct ?? 0) >= 0 ? HOT : "text-bull")}>
+                    {(s.change_pct ?? 0) >= 0 ? "+" : ""}{pct(s.change_pct)}
+                  </span>
+                  <div className="relative h-3 flex-1 overflow-hidden rounded bg-bg/40">
+                    <div className={cn("h-full rounded", pos ? "bg-[#ef4444]/70" : "bg-bull/60")} style={{ width: `${(Math.abs(s.net ?? 0) / maxStk) * 100}%` }} />
+                  </div>
+                  <span className={cn("w-14 shrink-0 text-right font-semibold tabular-nums", pos ? HOT : "text-bull")}>
+                    {pos ? "+" : ""}{(s.net ?? 0).toFixed(2)}亿
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

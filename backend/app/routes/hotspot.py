@@ -12,7 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.config import get_settings
 from app.services import auth, budget, events
 from app.services.global_flow import GlobalFlow, get_global_flow
-from app.services.hotspot import Hotspot, get_hotspot
+from app.services.hotspot import FlowDrill, Hotspot, get_flow_drill, get_hotspot
 from app.services.rate_limit import enforce_scope
 from app.services.skill_runner import sse_event, stream_hotspot_review
 
@@ -27,6 +27,15 @@ async def hotspot() -> Hotspot:
         return await asyncio.to_thread(get_hotspot)
     except Exception as e:
         log.exception("hotspot failed")
+        raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
+
+
+@router.get("/flow-drill", response_model=FlowDrill)
+async def flow_drill() -> FlowDrill:
+    try:
+        return await asyncio.to_thread(get_flow_drill)
+    except Exception as e:
+        log.exception("flow drill failed")
         raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
 
 

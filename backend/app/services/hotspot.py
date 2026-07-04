@@ -98,6 +98,28 @@ class Sankey(BaseModel):
     links: list[SankeyLink] = []
 
 
+class FlowStock(BaseModel):
+    """个股真实净流入(同花顺·即时),下钻明细用。"""
+    code: str
+    name: str
+    net: float | None = None          # 亿元(正=净流入)
+    price: float | None = None
+    change_pct: float | None = None   # decimal
+
+
+class FlowIndustry(BaseModel):
+    name: str
+    net: float = 0.0                  # 行业净额合计 亿元
+    count: int = 0                    # 该行业参与统计的个股数
+    stocks: list[FlowStock] = []      # 按净额降序;过长时保留头部流入+尾部流出
+
+
+class FlowDrill(BaseModel):
+    industries: list[FlowIndustry] = []
+    updated: str = ""
+    note: str = "真实个股净流入(同花顺·即时)按新浪行业聚合,约 3 分钟更新;客观统计,非荐股"
+
+
 class Mover(BaseModel):
     code: str
     name: str
@@ -354,23 +376,28 @@ def _industry_map() -> dict:
     return m
 
 
-def _build_flow_sankeys() -> tuple["Sankey | None", "Sankey | None"]:
+def _build_flow_sankeys() -> tuple["Sankey | None", "Sankey | None", "FlowDrill | None"]:
     import akshare as ak
 
     imap = _industry_map()
     if not imap:
-        return None, None
+        return None, None, None
     df = ak.stock_fund_flow_individual(symbol="即时")  # ~18s, all A-shares net flow
     ind_net: dict[str, float] = {}
-    ind_stocks: dict[str, list] = {}
+    ind_stocks: dict[str, list[FlowStock]] = {}
     for _, r in df.iterrows():
         code = re.sub(r"\D", "", str(r.get("股票代码")))
         ind = imap.get(code)
         net = _parse_money(r.get("净额"))
         if not ind or net is None:
             continue
+        chg = _safe_float(str(r.get("涨跌幅")).replace("%", ""))  # THS 返回 "20.02%" 字符串
         ind_net[ind] = ind_net.get(ind, 0.0) + net
-        ind_stocks.setdefault(ind, []).append((str(r.get("股票简称")), net))
+        ind_stocks.setdefault(ind, []).append(FlowStock(
+            code=code, name=str(r.get("股票简称")), net=round(net, 2),
+            price=_safe_float(r.get("最新价")),
+            change_pct=(chg / 100) if chg is not None else None,
+        ))
 
     def build(direction: int) -> "Sankey | None":
         root = "今日资金流入" if direction > 0 else "今日资金流出"
@@ -379,21 +406,32 @@ def _build_flow_sankeys() -> tuple["Sankey | None", "Sankey | None"]:
         nodes = [SankeyNode(name=root, kind="root")]
         links: list[SankeyLink] = []
         for ind, _ in inds[:7]:
-            stocks = [(n, v) for n, v in ind_stocks[ind] if v * direction > 0]
-            stocks.sort(key=lambda x: x[1] * direction, reverse=True)
+            stocks = [s for s in ind_stocks[ind] if (s.net or 0) * direction > 0]
+            stocks.sort(key=lambda s: (s.net or 0) * direction, reverse=True)
             stocks = stocks[:3]
             if not stocks:
                 continue
             ii = len(nodes)
             nodes.append(SankeyNode(name=ind, kind="industry"))
-            links.append(SankeyLink(source=0, target=ii, value=round(sum(abs(v) for _, v in stocks), 2)))
-            for n, v in stocks:
+            links.append(SankeyLink(source=0, target=ii, value=round(sum(abs(s.net or 0) for s in stocks), 2)))
+            for s in stocks:
                 si = len(nodes)
-                nodes.append(SankeyNode(name=n, kind="stock"))
-                links.append(SankeyLink(source=ii, target=si, value=round(abs(v), 2)))
+                nodes.append(SankeyNode(name=s.name, kind="stock"))
+                links.append(SankeyLink(source=ii, target=si, value=round(abs(s.net or 0), 2)))
         return Sankey(nodes=nodes, links=links) if len(nodes) > 1 else None
 
-    return build(1), build(-1)
+    # 完整下钻:每个行业按净额降序;过长时保留最强流入 14 只 + 最强流出 10 只。
+    cn_now = datetime.now(timezone.utc) + timedelta(hours=8)
+    industries: list[FlowIndustry] = []
+    for name, net in sorted(ind_net.items(), key=lambda kv: kv[1], reverse=True):
+        stocks = sorted(ind_stocks[name], key=lambda s: s.net or 0, reverse=True)
+        total = len(stocks)
+        if total > 24:
+            stocks = stocks[:14] + stocks[-10:]
+        industries.append(FlowIndustry(name=name, net=round(net, 2), count=total, stocks=stocks))
+    drill = FlowDrill(industries=industries, updated=cn_now.strftime("%H:%M")) if industries else None
+
+    return build(1), build(-1), drill
 
 
 def _refresh_flow() -> None:
@@ -406,7 +444,7 @@ def _refresh_flow() -> None:
         _flow_refreshing = False
 
 
-def _get_flow_sankeys() -> tuple["Sankey | None", "Sankey | None"]:
+def _get_flow_sankeys() -> tuple["Sankey | None", "Sankey | None", "FlowDrill | None"]:
     global _flow_refreshing
     now = time.time()
     if _FLOW_CACHE and now - _FLOW_CACHE[0] < _FLOW_TTL:
@@ -424,7 +462,13 @@ def _get_flow_sankeys() -> tuple["Sankey | None", "Sankey | None"]:
             return _FLOW_CACHE[1]
         _flow_refreshing = True
     _refresh_flow()
-    return _FLOW_CACHE[1] if _FLOW_CACHE else (None, None)
+    return _FLOW_CACHE[1] if _FLOW_CACHE else (None, None, None)
+
+
+def get_flow_drill() -> FlowDrill:
+    """行业 → 个股 真实净流入下钻(与桑基图共享同一份缓存)。"""
+    drill = _get_flow_sankeys()[2]
+    return drill or FlowDrill()
 
 
 def warm_flow() -> None:
@@ -498,7 +542,7 @@ def get_hotspot() -> Hotspot:
     except Exception as e:
         log.warning("hotspot fund flow failed: %s", e)
     try:
-        hs.sankey_in, hs.sankey_out = _get_flow_sankeys()
+        hs.sankey_in, hs.sankey_out, _ = _get_flow_sankeys()
     except Exception as e:
         log.warning("hotspot flow sankeys failed: %s", e)
 
