@@ -11,6 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
 from app.services import auth, budget, events
+from app.services.global_flow import GlobalFlow, get_global_flow
 from app.services.hotspot import Hotspot, get_hotspot
 from app.services.rate_limit import enforce_scope
 from app.services.skill_runner import sse_event, stream_hotspot_review
@@ -26,6 +27,15 @@ async def hotspot() -> Hotspot:
         return await asyncio.to_thread(get_hotspot)
     except Exception as e:
         log.exception("hotspot failed")
+        raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
+
+
+@router.get("/global-flow", response_model=GlobalFlow)
+async def global_flow() -> GlobalFlow:
+    try:
+        return await asyncio.to_thread(get_global_flow)
+    except Exception as e:
+        log.exception("global flow failed")
         raise HTTPException(status_code=502, detail=f"upstream data error: {e}") from e
 
 

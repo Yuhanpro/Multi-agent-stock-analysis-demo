@@ -67,6 +67,11 @@ _threading.Thread(target=_warm_overview, daemon=True).start()
 from app.services.hotspot import warm_flow as _warm_flow  # noqa: E402
 
 _threading.Thread(target=_warm_flow, daemon=True).start()
+# US sector-ETF direction proxy + HK southbound: ~13 EOD fetches (~30s) — warm
+# at boot so the hotspot page's US/HK panels are instant.
+from app.services.global_flow import warm as _warm_global_flow  # noqa: E402
+
+_threading.Thread(target=_warm_global_flow, daemon=True).start()
 
 # Price-alert engine is paused for now (WeChat-binding UX was too heavy). The
 # code/tables stay in place; re-enable by uncommenting + restoring the watchlist UI.

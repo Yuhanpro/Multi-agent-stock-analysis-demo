@@ -395,6 +395,17 @@ export async function fetchHotspot(): Promise<Hotspot> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/hotspot`));
 }
 
+export interface UsSectorFlow { symbol: string; name: string; change_pct: number | null; amount: number | null; vol_ratio: number | null; date: string | null; }
+export interface HkSouthbound { board: string; net_buy: number | null; date: string | null; }
+export interface GlobalFlow {
+  us: UsSectorFlow[]; us_bench: UsSectorFlow[]; us_date: string | null;
+  hk: HkSouthbound[]; hk_date: string | null;
+  updated: string; note: string;
+}
+export async function fetchGlobalFlow(): Promise<GlobalFlow> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/global-flow`));
+}
+
 // ---------- admin + tracking ------------------------------------------------
 
 export interface InviteCode {

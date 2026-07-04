@@ -6,7 +6,7 @@ import { ArrowRight, CheckCircle2, Flame, Loader2, RefreshCw, Sparkles } from "l
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Sankey, Layer, Rectangle, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
-import { fetchHotspot, type FundFlow, type Hotspot } from "@/lib/api";
+import { fetchGlobalFlow, fetchHotspot, type FundFlow, type GlobalFlow, type Hotspot, type UsSectorFlow } from "@/lib/api";
 import { streamSSE } from "@/lib/sse";
 import { useT, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/format";
@@ -30,12 +30,14 @@ const MOODS = ["cold", "weak", "neutral", "warm", "strong"] as const;
 export default function HotspotPage() {
   const { t, lang } = useT();
   const [d, setD] = useState<Hotspot | null>(null);
+  const [gf, setGf] = useState<GlobalFlow | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const [reviewOn, setReviewOn] = useState(0);
   useEffect(() => {
     setErr(null);
     fetchHotspot().then(setD).catch((e) => setErr(e.message));
+    fetchGlobalFlow().then(setGf).catch(() => setGf(null)); // best-effort, never blocks the CN page
   }, [nonce]);
 
   return (
@@ -136,6 +138,48 @@ export default function HotspotPage() {
           {d.sankey_out && d.sankey_out.links.length > 0 && (
             <Panel title={t("hot.sankeyOut")} hint={t("hot.sankeyHintOut")}>
               <HotspotSankey data={d.sankey_out} out />
+            </Panel>
+          )}
+
+          {/* 美股板块资金方向(近似) + 港股南向资金(真实) */}
+          {gf && gf.us.length > 0 && (
+            <Panel title={`${t("hot.us")}${gf.us_date ? ` · ${gf.us_date}` : ""}`} hint={t("hot.usHint")}>
+              {gf.us_bench.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-muted">{t("hot.usBench")}</span>
+                  {gf.us_bench.map((b) => (
+                    <span key={b.symbol} className="rounded-md border border-border bg-bg/40 px-2 py-0.5 text-xs">
+                      <span className="text-heading">{b.name}</span>{" "}
+                      <b className={(b.change_pct ?? 0) >= 0 ? HOT : "text-bull"}>
+                        {(b.change_pct ?? 0) >= 0 ? "+" : ""}{pct(b.change_pct)}
+                      </b>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <UsFlowList rows={gf.us} volLabel={t("hot.volRatio")} />
+            </Panel>
+          )}
+          {gf && gf.hk.length > 0 && (
+            <Panel title={`${t("hot.hk")}${gf.hk_date ? ` · ${gf.hk_date}` : ""}`} hint={t("hot.hkHint")}>
+              <div className="flex flex-wrap gap-3">
+                {gf.hk.map((h) => (
+                  <div key={h.board} className="min-w-[9rem] flex-1 rounded-lg border border-border/70 bg-bg/25 px-3 py-2.5">
+                    <div className="text-[11px] text-muted">{h.board}</div>
+                    <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", (h.net_buy ?? 0) >= 0 ? HOT : "text-bull")}>
+                      {(h.net_buy ?? 0) >= 0 ? "+" : ""}{(h.net_buy ?? 0).toFixed(1)}亿
+                    </div>
+                  </div>
+                ))}
+                <div className="min-w-[9rem] flex-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3 py-2.5">
+                  <div className="text-[11px] text-muted">{t("hot.hkTotal")}</div>
+                  <div className={cn("mt-0.5 text-lg font-semibold tabular-nums",
+                    gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0) >= 0 ? HOT : "text-bull")}>
+                    {gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0) >= 0 ? "+" : ""}
+                    {gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0).toFixed(1)}亿
+                  </div>
+                </div>
+              </div>
             </Panel>
           )}
 
@@ -318,6 +362,36 @@ function FlowList({ title, rows }: { title: string; rows: FundFlow[] }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function UsFlowList({ rows, volLabel }: { rows: UsSectorFlow[]; volLabel: string }) {
+  const max = Math.max(...rows.map((r) => r.amount ?? 0), 1);
+  const usdYi = (v: number | null) => (v == null ? "—" : `${(v / 1e8).toFixed(0)}亿$`);
+  return (
+    <div className="space-y-1.5">
+      {rows.map((r) => {
+        const pos = (r.change_pct ?? 0) >= 0;
+        return (
+          <div key={r.symbol} className="flex items-center gap-2 text-xs">
+            <span className="w-20 shrink-0 truncate text-heading" title={`${r.name} ${r.symbol}`}>{r.name}</span>
+            <span className="hidden w-10 shrink-0 font-mono text-[10px] text-muted sm:inline">{r.symbol}</span>
+            <div className="relative h-4 flex-1 overflow-hidden rounded bg-bg/40">
+              <div className={cn("h-full rounded", pos ? "bg-[#ef4444]/70" : "bg-bull/60")} style={{ width: `${((r.amount ?? 0) / max) * 100}%` }} />
+            </div>
+            <span className={cn("w-12 shrink-0 text-right font-semibold tabular-nums", pos ? HOT : "text-bull")}>
+              {pos ? "+" : ""}{pct(r.change_pct)}
+            </span>
+            <span className="w-14 shrink-0 text-right text-muted tabular-nums">{usdYi(r.amount)}</span>
+            {r.vol_ratio != null && r.vol_ratio >= 1.3 ? (
+              <span className="w-14 shrink-0 text-right font-semibold text-accent">{volLabel}×{r.vol_ratio.toFixed(1)}</span>
+            ) : (
+              <span className="hidden w-14 shrink-0 sm:inline" />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
