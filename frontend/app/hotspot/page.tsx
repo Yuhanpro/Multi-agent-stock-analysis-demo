@@ -102,97 +102,107 @@ export default function HotspotPage() {
                     ))}
                   </div>
                 )}
+                {d.ladder.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {[...d.ladder].reverse().map((l) => (
+                      <span key={l.boards} className="rounded-md border border-border bg-bg/40 px-2 py-0.5 text-xs">
+                        <b className={HOT}>{l.boards >= 2 ? `${l.boards}板` : "首板"}</b> <span className="text-muted">{l.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })()}
 
-          {/* summary */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-border bg-surface px-4 py-3 text-sm">
-            <span className="text-muted">{d.date} · {t("hot.updated")} {d.updated}</span>
-            <span className="text-body"><b className={HOT}>{d.zt_count}</b> {t("hot.zt")}</span>
-            <span className="text-body"><b className="text-heading">{d.broke_count}</b> {t("hot.broke")}</span>
-            <span className="text-body">{t("hot.maxBoards")} <b className={HOT}>{d.max_boards}</b></span>
-            <span className="flex basis-full flex-wrap gap-1.5 sm:ml-auto sm:basis-auto">
-              {[...d.ladder].reverse().map((l) => (
-                <span key={l.boards} className="rounded-md border border-border bg-bg/40 px-2 py-0.5 text-xs">
-                  <b className={HOT}>{l.boards >= 2 ? `${l.boards}板` : "首板"}</b> <span className="text-muted">{l.count}</span>
-                </span>
-              ))}
-            </span>
-          </div>
+          {/* ── 钱往哪流:下钻为主视图,题材榜补充,桑基图折叠 ── */}
+          <SectionHead title={t("hot.secFlow")} desc={t("hot.secFlowHint")} />
 
-          {/* 资金流向(真实净流入,同花顺) */}
-          {(d.flow_industry.length > 0 || d.flow_concept.length > 0) && (
-            <Panel title={t("hot.flow")} hint={t("hot.flowHint")}>
-              <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
-                <FlowList title={t("hot.flowIndustry")} rows={d.flow_industry} />
-                <FlowList title={t("hot.flowConcept")} rows={d.flow_concept} />
-              </div>
-            </Panel>
-          )}
-
-          {/* 桑基下钻:今日资金流入/流出 → 行业 → 个股(真实净流入) */}
-          {d.sankey_in && d.sankey_in.links.length > 0 && (
-            <Panel title={t("hot.sankeyIn")} hint={t("hot.sankeyHint")}>
-              <HotspotSankey data={d.sankey_in} />
-            </Panel>
-          )}
-          {d.sankey_out && d.sankey_out.links.length > 0 && (
-            <Panel title={t("hot.sankeyOut")} hint={t("hot.sankeyHintOut")}>
-              <HotspotSankey data={d.sankey_out} out />
-            </Panel>
-          )}
-
-          {/* 资金下钻:点击行业 → 该行业个股真实净流入 */}
           {drill && drill.industries.length > 0 && (
             <Panel title={`${t("hot.drill")} · ${drill.updated}`} hint={t("hot.drillHint")}>
               <FlowDrillView data={drill} ofLabel={t("hot.drillOf")} netLabel={t("hot.drillNet")} />
             </Panel>
           )}
 
-          {/* 美股板块资金方向(近似) + 港股南向资金(真实) */}
-          {gf && gf.us.length > 0 && (
-            <Panel title={`${t("hot.us")}${gf.us_date ? ` · ${gf.us_date}` : ""}`} hint={t("hot.usHint")}>
-              {gf.us_bench.length > 0 && (
-                <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-muted">{t("hot.usBench")}</span>
-                  {gf.us_bench.map((b) => (
-                    <span key={b.symbol} className="rounded-md border border-border bg-bg/40 px-2 py-0.5 text-xs">
-                      <span className="text-heading">{b.name}</span>{" "}
-                      <b className={(b.change_pct ?? 0) >= 0 ? HOT : "text-bull"}>
-                        {(b.change_pct ?? 0) >= 0 ? "+" : ""}{pct(b.change_pct)}
-                      </b>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <UsFlowList rows={gf.us} volLabel={t("hot.volRatio")} />
-            </Panel>
-          )}
-          {gf && gf.hk.length > 0 && (
-            <Panel title={`${t("hot.hk")}${gf.hk_date ? ` · ${gf.hk_date}` : ""}`} hint={t("hot.hkHint")}>
-              <div className="flex flex-wrap gap-3">
-                {gf.hk.map((h) => (
-                  <div key={h.board} className="min-w-[9rem] flex-1 rounded-lg border border-border/70 bg-bg/25 px-3 py-2.5">
-                    <div className="text-[11px] text-muted">{h.board}</div>
-                    <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", (h.net_buy ?? 0) >= 0 ? HOT : "text-bull")}>
-                      {(h.net_buy ?? 0) >= 0 ? "+" : ""}{(h.net_buy ?? 0).toFixed(1)}亿
-                    </div>
-                  </div>
-                ))}
-                <div className="min-w-[9rem] flex-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3 py-2.5">
-                  <div className="text-[11px] text-muted">{t("hot.hkTotal")}</div>
-                  <div className={cn("mt-0.5 text-lg font-semibold tabular-nums",
-                    gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0) >= 0 ? HOT : "text-bull")}>
-                    {gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0) >= 0 ? "+" : ""}
-                    {gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0).toFixed(1)}亿
-                  </div>
-                </div>
-              </div>
+          {d.flow_concept.length > 0 && (
+            <Panel title={t("hot.flowConcept")} hint={t("hot.flowHint")}>
+              <FlowList rows={d.flow_concept.slice(0, 10)} />
             </Panel>
           )}
 
-          {/* 资金方向 */}
+          {((d.sankey_in && d.sankey_in.links.length > 0) || (d.sankey_out && d.sankey_out.links.length > 0)) && (
+            <details className="rounded-xl border border-border bg-surface">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-muted hover:text-heading">
+                {t("hot.sankeyMore")}
+              </summary>
+              <div className="space-y-5 px-4 pb-4">
+                {d.sankey_in && d.sankey_in.links.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-sm font-semibold text-heading">{t("hot.sankeyIn")}</div>
+                    <HotspotSankey data={d.sankey_in} />
+                  </div>
+                )}
+                {d.sankey_out && d.sankey_out.links.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-sm font-semibold text-heading">{t("hot.sankeyOut")}</div>
+                    <HotspotSankey data={d.sankey_out} out />
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
+
+          {/* ── 海外资金参考:港股南向(真实) + 美股板块(近似) ── */}
+          {gf && (gf.us.length > 0 || gf.hk.length > 0) && (
+            <>
+              <SectionHead title={t("hot.secGlobal")} desc={t("hot.secGlobalHint")} />
+              <div className="grid items-start gap-4 lg:grid-cols-2">
+                {gf.hk.length > 0 && (
+                  <Panel title={`${t("hot.hk")}${gf.hk_date ? ` · ${gf.hk_date}` : ""}`} hint={t("hot.hkHint")}>
+                    <div className="flex flex-wrap gap-3">
+                      {gf.hk.map((h) => (
+                        <div key={h.board} className="min-w-[9rem] flex-1 rounded-lg border border-border/70 bg-bg/25 px-3 py-2.5">
+                          <div className="text-[11px] text-muted">{h.board}</div>
+                          <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", (h.net_buy ?? 0) >= 0 ? HOT : "text-bull")}>
+                            {(h.net_buy ?? 0) >= 0 ? "+" : ""}{(h.net_buy ?? 0).toFixed(1)}亿
+                          </div>
+                        </div>
+                      ))}
+                      <div className="min-w-[9rem] flex-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3 py-2.5">
+                        <div className="text-[11px] text-muted">{t("hot.hkTotal")}</div>
+                        <div className={cn("mt-0.5 text-lg font-semibold tabular-nums",
+                          gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0) >= 0 ? HOT : "text-bull")}>
+                          {gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0) >= 0 ? "+" : ""}
+                          {gf.hk.reduce((s, h) => s + (h.net_buy ?? 0), 0).toFixed(1)}亿
+                        </div>
+                      </div>
+                    </div>
+                  </Panel>
+                )}
+                {gf.us.length > 0 && (
+                  <Panel title={`${t("hot.us")}${gf.us_date ? ` · ${gf.us_date}` : ""}`} hint={t("hot.usHint")}>
+                    {gf.us_bench.length > 0 && (
+                      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-muted">{t("hot.usBench")}</span>
+                        {gf.us_bench.map((b) => (
+                          <span key={b.symbol} className="rounded-md border border-border bg-bg/40 px-2 py-0.5 text-xs">
+                            <span className="text-heading">{b.name}</span>{" "}
+                            <b className={(b.change_pct ?? 0) >= 0 ? HOT : "text-bull"}>
+                              {(b.change_pct ?? 0) >= 0 ? "+" : ""}{pct(b.change_pct)}
+                            </b>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <UsFlowList rows={gf.us} volLabel={t("hot.volRatio")} />
+                  </Panel>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── 涨停与打板结构(强度代理) ── */}
+          <SectionHead title={t("hot.secStrength")} desc={t("hot.secStrengthHint")} />
           <Panel title={t("hot.directions")} hint={t("hot.directionsHint")}>
             <div className="space-y-2">
               {d.directions.map((x) => {
@@ -349,11 +359,20 @@ function HotspotSankey({ data, out }: { data: { nodes: { name: string; kind: str
   );
 }
 
-function FlowList({ title, rows }: { title: string; rows: FundFlow[] }) {
+function SectionHead({ title, desc }: { title: string; desc?: string }) {
+  return (
+    <div className="pt-3">
+      <div className="text-base font-semibold text-heading">{title}</div>
+      {desc && <p className="mt-0.5 text-xs leading-5 text-muted">{desc}</p>}
+    </div>
+  );
+}
+
+function FlowList({ title, rows }: { title?: string; rows: FundFlow[] }) {
   const max = Math.max(...rows.map((r) => Math.abs(r.net ?? 0)), 1);
   return (
     <div>
-      <div className="mb-2 text-xs font-semibold text-muted">{title}</div>
+      {title && <div className="mb-2 text-xs font-semibold text-muted">{title}</div>}
       <div className="space-y-1.5">
         {rows.map((r, i) => {
           const pos = (r.net ?? 0) >= 0;
