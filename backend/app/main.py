@@ -56,22 +56,29 @@ db.init_db()
 import threading as _threading  # noqa: E402
 
 from app.services.funds import warm_caches as _warm_funds  # noqa: E402
+from app.services.global_flow import warm as _warm_global_flow  # noqa: E402
+from app.services.hotspot import warm_flow as _warm_flow  # noqa: E402
 from app.services.market_overview import warm as _warm_overview  # noqa: E402
 
-_threading.Thread(target=_warm_funds, daemon=True).start()
-# Market-heat: CN runs several akshare calls + US/HK N per-ticker fetches; warm
-# all three at boot (and refresh in the background) so the page loads instantly.
-_threading.Thread(target=_warm_overview, daemon=True).start()
-# Hotspot net-flow Sankeys are heavy (industry map + all-stock flow, ~20s) — warm
-# at boot so the drill-down is ready, then it self-refreshes every few minutes.
-from app.services.hotspot import warm_flow as _warm_flow  # noqa: E402
 
-_threading.Thread(target=_warm_flow, daemon=True).start()
-# US sector-ETF direction proxy + HK southbound: ~13 EOD fetches (~30s) — warm
-# at boot so the hotspot page's US/HK panels are instant.
-from app.services.global_flow import warm as _warm_global_flow  # noqa: E402
+def _warm_all() -> None:
+    """Boot warms run SEQUENTIALLY in one thread. Running them as four parallel
+    threads hammered Sina from one IP (spot crawl + sector details + ETF dailies
+    at once) → per-IP throttling → empty results got cached and 市场热度 showed
+    blank. Order: user-facing overview first, then hotspot/global, funds last."""
+    for name, fn in (
+        ("overview", _warm_overview),
+        ("hotspot-flow", _warm_flow),
+        ("global-flow", _warm_global_flow),
+        ("funds", _warm_funds),
+    ):
+        try:
+            fn()
+        except Exception:  # noqa: BLE001 — a failed warm must not kill the rest
+            log.exception("boot warm %s failed", name)
 
-_threading.Thread(target=_warm_global_flow, daemon=True).start()
+
+_threading.Thread(target=_warm_all, daemon=True).start()
 
 # Price-alert engine is paused for now (WeChat-binding UX was too heavy). The
 # code/tables stay in place; re-enable by uncommenting + restoring the watchlist UI.

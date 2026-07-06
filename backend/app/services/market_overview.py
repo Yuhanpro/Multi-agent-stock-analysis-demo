@@ -318,21 +318,27 @@ def _parallel(tasks: dict[str, "callable"]) -> dict:
 def _compute(market: str) -> MarketOverview:
     ov = MarketOverview(source="sina")
     if market == "CN":
-        # All independent; get_cn_spot() is lock-guarded so companies + breadth
-        # share one fetch, which overlaps the indices/news round-trips.
+        # Two phases on purpose. Sina throttles per-IP concurrency: the shared
+        # A-share spot crawl (stock_zh_a_spot ≈ 70 paginated requests) running
+        # WHILE the light index/sector calls fire made Sina return garbage for
+        # everything, and the empty result then got cached ("市场热度刷不出来").
+        # Phase 1: light, fast endpoints in parallel (4 small round-trips).
         r = _parallel({
-            "spot": get_cn_spot,   # kick off the shared A-share fetch early
             "indices": _indices,
             "industries": _industries,
-            "companies": _companies,
-            "breadth": _breadth,
             "news": lambda: _news(market),
             "site_top": lambda: _site_top(market),
         })
         ov.indices = r.get("indices") or []
         ov.hot_industries = r.get("industries") or []
-        ov.hot_companies = r.get("companies") or []
-        ov.breadth = r.get("breadth")
+        # Phase 2: the heavy shared crawl alone, then its two consumers.
+        try:
+            get_cn_spot()
+        except Exception as e:
+            log.warning("overview cn spot failed: %s", e)
+        r2 = _parallel({"companies": _companies, "breadth": _breadth})
+        ov.hot_companies = r2.get("companies") or []
+        ov.breadth = r2.get("breadth")
     else:
         r = _parallel({
             "companies": lambda: _curated_companies(market),
@@ -345,9 +351,29 @@ def _compute(market: str) -> MarketOverview:
     return ov
 
 
+def _gutted(ov: MarketOverview, market: str) -> bool:
+    """True when the market module came back with no usable data (news alone
+    doesn't count — the page's default view is the market module)."""
+    if market == "CN":
+        return not ov.indices and not ov.hot_industries and not ov.hot_companies
+    return not ov.hot_companies
+
+
+def _store(market: str, ov: MarketOverview) -> None:
+    """Cache the result, but never overwrite last-good data with an empty fetch
+    (Sina throttling windows produce empties). Backdate the timestamp instead so
+    the next request retries soon."""
+    old = _CACHE.get(market)
+    if _gutted(ov, market) and old and not _gutted(old[1], market):
+        log.warning("overview %s came back empty; keeping last-good copy", market)
+        _CACHE[market] = (time.time() - _TTL + 60, old[1])
+        return
+    _CACHE[market] = (time.time(), ov)
+
+
 def _refresh(market: str) -> None:
     try:
-        _CACHE[market] = (time.time(), _compute(market))
+        _store(market, _compute(market))
     except Exception as e:
         log.warning("overview refresh %s failed: %s", market, e)
     finally:
@@ -370,15 +396,21 @@ def get_overview(market: str = "CN") -> MarketOverview:
                 threading.Thread(target=_refresh, args=(market,), daemon=True).start()
         return hit[1]
     ov = _compute(market)  # cold cache — compute synchronously this once
-    _CACHE[market] = (time.time(), ov)
+    _store(market, ov)
     return ov
 
 
 def warm() -> None:
-    """Prime CN/US/HK caches at startup so first requests are instant."""
+    """Prime CN/US/HK caches at startup so first requests are instant. An empty
+    result (throttled window) is retried once after a pause."""
     for m in ("CN", "US", "HK"):
         try:
-            _CACHE[m] = (time.time(), _compute(m))
-            log.info("market-overview warmed: %s", m)
+            ov = _compute(m)
+            if _gutted(ov, m):
+                log.warning("market-overview warm %s empty; retrying in 45s", m)
+                time.sleep(45)
+                ov = _compute(m)
+            _store(m, ov)
+            log.info("market-overview warmed: %s (gutted=%s)", m, _gutted(ov, m))
         except Exception as e:
             log.warning("market-overview warm %s failed: %s", m, e)
