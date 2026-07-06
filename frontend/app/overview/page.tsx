@@ -9,6 +9,28 @@ import { cn, fmtPct } from "@/lib/format";
 
 const MARKETS: Market[] = ["CN", "US", "HK"];
 
+// 大盘指数占位:数据被限流成空时仍渲染结构,让"大盘指数"区始终可见。
+const INDEX_PLACEHOLDERS: Record<Market, { code: string; name: string; price: null; change_pct: null }[]> = {
+  CN: [
+    { code: "sh000001", name: "上证指数", price: null, change_pct: null },
+    { code: "sz399001", name: "深证成指", price: null, change_pct: null },
+    { code: "sz399006", name: "创业板指", price: null, change_pct: null },
+    { code: "sh000300", name: "沪深300", price: null, change_pct: null },
+    { code: "sh000688", name: "科创50", price: null, change_pct: null },
+  ],
+  US: [
+    { code: "SPX", name: "S&P 500", price: null, change_pct: null },
+    { code: "IXIC", name: "Nasdaq", price: null, change_pct: null },
+    { code: "DJI", name: "Dow Jones", price: null, change_pct: null },
+    { code: "VIX", name: "VIX", price: null, change_pct: null },
+  ],
+  HK: [
+    { code: "HSI", name: "恒生指数", price: null, change_pct: null },
+    { code: "HSCEI", name: "国企指数", price: null, change_pct: null },
+    { code: "HSTECH", name: "恒生科技", price: null, change_pct: null },
+  ],
+};
+
 type OvModule = "market" | "news";
 const MODULES: { id: OvModule; icon: typeof Flame; key: string }[] = [
   { id: "market", icon: LineChart, key: "ov.mod.market" },
@@ -126,17 +148,18 @@ export default function OverviewPage() {
         <div className="mt-6 rounded-lg border border-bear/40 bg-bear/10 px-4 py-3 text-sm text-bear">{error}</div>
       ) : data ? (
         <div className="mt-6 space-y-6 sm:space-y-8">
-          {/* Index strip (CN) */}
-          {mod === "market" && data.indices.length > 0 && (
+          {/* 大盘指数 — 始终渲染,数据空时显示占位而非整块消失 */}
+          {mod === "market" && (
             <section>
+              <h2 className="mb-2 text-sm font-semibold text-heading">{market === "CN" ? t("ov.indices") : t("ov.indicesMajor")}</h2>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                {data.indices.map((ix) => (
-                  <div key={ix.code} className="rounded-lg border border-border bg-surface/70 px-3 py-2">
+                {(data.indices.length > 0 ? data.indices : INDEX_PLACEHOLDERS[market]).map((ix) => (
+                  <div key={ix.code} className="rounded-lg border border-border bg-surface/70 px-3 py-2.5">
                     <div className="truncate text-[11px] text-muted">{ix.name}</div>
-                    <div className="mt-0.5 text-base font-semibold tabular-nums text-heading">
+                    <div className="mt-0.5 text-lg font-semibold tabular-nums text-heading">
                       {ix.price != null ? ix.price.toFixed(2) : "—"}
                     </div>
-                    <div className={cn("text-xs font-semibold tabular-nums", tone(ix.change_pct, "CN"))}>
+                    <div className={cn("text-xs font-semibold tabular-nums", tone(ix.change_pct, market))}>
                       {fmtPct(ix.change_pct)}
                     </div>
                   </div>
