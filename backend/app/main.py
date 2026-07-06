@@ -57,21 +57,20 @@ import threading as _threading  # noqa: E402
 
 from app.services.funds import warm_caches as _warm_funds  # noqa: E402
 from app.services.global_flow import warm as _warm_global_flow  # noqa: E402
-from app.services.hotspot import warm_flow as _warm_flow  # noqa: E402
 from app.services.market_overview import warm as _warm_overview  # noqa: E402
 
 
 def _warm_all() -> None:
     """Boot warms run SEQUENTIALLY in one thread. Running them as four parallel
-    threads hammered Sina from one IP (spot crawl + sector details + ETF dailies
-    at once) → per-IP throttling → empty results got cached and 市场热度 showed
-    blank. Order: user-facing overview first, then hotspot/global, funds last."""
-    # hotspot-flow first: it builds the Sina code→industry map (24h cache) that
-    # the overview's industry drill-down reuses.
+    threads hammered Sina from one IP → per-IP throttling → empty results got
+    cached. Order: the critical user-facing overview first, then the lighter
+    global-flow, then funds. The hotspot net-flow Sankeys are intentionally NOT
+    warmed here — their Sina industry-map crawl (~50 requests) is the heaviest
+    Sina consumer and the most likely to trigger the throttling that empties the
+    overview; they build lazily on first /hotspot visit and are cached 24h after."""
     import time as _time
 
     for name, fn in (
-        ("hotspot-flow", _warm_flow),
         ("overview", _warm_overview),
         ("global-flow", _warm_global_flow),
         ("funds", _warm_funds),

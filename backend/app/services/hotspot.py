@@ -351,26 +351,32 @@ def _parse_money(s) -> float | None:
 
 
 def _industry_map() -> dict:
-    """{股票代码: 新浪行业名};遍历新浪行业成分(可达),缓存 24h。"""
+    """{股票代码: 新浪行业名};遍历新浪行业成分(可达),缓存 24h。
+
+    Sina 对单 IP 并发敏感,偶发返回垃圾 JSON → 重试最多 3 次(间隔递增)。"""
     global _IND_MAP
     if _IND_MAP and time.time() - _IND_MAP[0] < _IND_MAP_TTL:
         return _IND_MAP[1]
     import akshare as ak
 
     m: dict[str, str] = {}
-    try:
-        sp = ak.stock_sector_spot(indicator="新浪行业")
-        cols = list(sp.columns)
-        for _, r in sp.iterrows():
-            label, ind = str(r[cols[0]]), str(r[cols[1]])
-            try:
-                d = ak.stock_sector_detail(sector=label)
-                for code in d["code"]:
-                    m[re.sub(r"\D", "", str(code))] = ind
-            except Exception:
-                continue
-    except Exception as e:
-        log.warning("industry map failed: %s", e)
+    for attempt in range(3):
+        try:
+            sp = ak.stock_sector_spot(indicator="新浪行业")
+            cols = list(sp.columns)
+            for _, r in sp.iterrows():
+                label, ind = str(r[cols[0]]), str(r[cols[1]])
+                try:
+                    d = ak.stock_sector_detail(sector=label)
+                    for code in d["code"]:
+                        m[re.sub(r"\D", "", str(code))] = ind
+                except Exception:
+                    continue
+            if m:
+                break
+        except Exception as e:
+            log.warning("industry map attempt %d failed: %s", attempt + 1, e)
+            time.sleep(8 * (attempt + 1))
     if m:
         _IND_MAP = (time.time(), m)
     return m

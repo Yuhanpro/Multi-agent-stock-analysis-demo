@@ -248,9 +248,12 @@ def _companies() -> list[HotCompany]:
 
 
 def _cached_industry_map() -> dict:
-    """Sina code→industry map, but only if hotspot already built it (24h cache).
-    Never trigger the ~50-request crawl from inside an overview compute — a cold
-    user request would hang minutes. Boot warm builds it via hotspot first."""
+    """Sina code→industry map. Reuses hotspot's 24h cache; NON-BLOCKING — if the
+    map isn't built yet (boot throttling window) returns empty so the overview's
+    drill-down is simply skipped this cycle. The map is built by hotspot.warm_flow
+    at boot (with retries), so by the time the overview's SWR background refresh
+    runs, the map is ready and the drill populates. Never trigger the ~50-request
+    crawl from here — this runs on user request paths too."""
     from app.services import hotspot
 
     m = hotspot._IND_MAP
