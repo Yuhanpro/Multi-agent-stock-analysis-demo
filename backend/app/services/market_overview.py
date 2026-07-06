@@ -66,15 +66,6 @@ class Breadth(BaseModel):
     limit_up: int | None = None    # 涨停家数
 
 
-class HotIndustry(BaseModel):
-    name: str
-    change_pct: float | None = None
-    amount: float | None = None
-    num_companies: int | None = None
-    leader_name: str | None = None
-    leader_change: float | None = None
-
-
 class HotCompany(BaseModel):
     code: str
     name: str
@@ -82,6 +73,16 @@ class HotCompany(BaseModel):
     price: float | None = None
     change_pct: float | None = None
     amount: float | None = None
+
+
+class HotIndustry(BaseModel):
+    name: str
+    change_pct: float | None = None
+    amount: float | None = None
+    num_companies: int | None = None
+    leader_name: str | None = None
+    leader_change: float | None = None
+    companies: list[HotCompany] = []   # 该板块成交额 top,点击下钻用
 
 
 class SiteTop(BaseModel):
@@ -246,6 +247,47 @@ def _companies() -> list[HotCompany]:
     return out
 
 
+def _cached_industry_map() -> dict:
+    """Sina code→industry map, but only if hotspot already built it (24h cache).
+    Never trigger the ~50-request crawl from inside an overview compute — a cold
+    user request would hang minutes. Boot warm builds it via hotspot first."""
+    from app.services import hotspot
+
+    m = hotspot._IND_MAP
+    if m and time.time() - m[0] < hotspot._IND_MAP_TTL:
+        return m[1]
+    return {}
+
+
+def _industry_companies(industries: list[HotIndustry]) -> None:
+    """Attach each hot industry's most-active stocks (by turnover) in place, so
+    the frontend can drill down on click with zero extra requests."""
+    imap = _cached_industry_map()
+    if not imap or not industries:
+        return
+    df = get_cn_spot()
+    if df is None or getattr(df, "empty", True):
+        return
+    d = df.copy()
+    d["_amt"] = d["成交额"].map(_safe_float)
+    d["_code"] = d["代码"].astype(str).str.replace(r"\D", "", regex=True)
+    d["_ind"] = d["_code"].map(imap)
+    wanted = {i.name for i in industries}
+    d = d[d["_ind"].isin(wanted) & d["_amt"].notna()]
+    top = d.sort_values("_amt", ascending=False).groupby("_ind").head(8)
+    by_ind: dict[str, list[HotCompany]] = {}
+    for _, r in top.iterrows():
+        by_ind.setdefault(str(r["_ind"]), []).append(HotCompany(
+            code=str(r["_code"]),
+            name=str(r.get("名称")),
+            price=_safe_float(r.get("最新价")),
+            change_pct=_pct(r.get("涨跌幅")),
+            amount=r["_amt"],
+        ))
+    for i in industries:
+        i.companies = by_ind.get(i.name, [])
+
+
 def _daily_move(ticker: str, market: str):
     """(price, change_pct, approx_turnover) from Sina daily — reliable on the VPS."""
     import akshare as ak
@@ -339,6 +381,10 @@ def _compute(market: str) -> MarketOverview:
         r2 = _parallel({"companies": _companies, "breadth": _breadth})
         ov.hot_companies = r2.get("companies") or []
         ov.breadth = r2.get("breadth")
+        try:
+            _industry_companies(ov.hot_industries)
+        except Exception as e:
+            log.warning("overview industry companies failed: %s", e)
     else:
         r = _parallel({
             "companies": lambda: _curated_companies(market),
@@ -352,10 +398,11 @@ def _compute(market: str) -> MarketOverview:
 
 
 def _gutted(ov: MarketOverview, market: str) -> bool:
-    """True when the market module came back with no usable data (news alone
-    doesn't count — the page's default view is the market module)."""
-    if market == "CN":
-        return not ov.indices and not ov.hot_industries and not ov.hot_companies
+    """True when the market module came back without its core list. For CN the
+    most-active companies come from the whole-market spot crawl — the fetch most
+    likely to hit Sina throttling — and the industry drill-down depends on the
+    same table, so an empty companies list means "retry soon" even if the light
+    index/sector calls succeeded."""
     return not ov.hot_companies
 
 
@@ -364,9 +411,15 @@ def _store(market: str, ov: MarketOverview) -> None:
     (Sina throttling windows produce empties). Backdate the timestamp instead so
     the next request retries soon."""
     old = _CACHE.get(market)
-    if _gutted(ov, market) and old and not _gutted(old[1], market):
-        log.warning("overview %s came back empty; keeping last-good copy", market)
-        _CACHE[market] = (time.time() - _TTL + 60, old[1])
+    if _gutted(ov, market):
+        if old and not _gutted(old[1], market):
+            log.warning("overview %s came back empty; keeping last-good copy", market)
+            _CACHE[market] = (time.time() - _TTL + 60, old[1])
+        else:
+            # No good copy to fall back on: cache the empty briefly (60s) so we
+            # keep retrying instead of pinning a blank page for a full TTL.
+            log.warning("overview %s empty with no last-good; will retry in 60s", market)
+            _CACHE[market] = (time.time() - _TTL + 60, ov)
         return
     _CACHE[market] = (time.time(), ov)
 

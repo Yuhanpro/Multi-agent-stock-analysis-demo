@@ -66,9 +66,13 @@ def _warm_all() -> None:
     threads hammered Sina from one IP (spot crawl + sector details + ETF dailies
     at once) → per-IP throttling → empty results got cached and 市场热度 showed
     blank. Order: user-facing overview first, then hotspot/global, funds last."""
+    # hotspot-flow first: it builds the Sina code→industry map (24h cache) that
+    # the overview's industry drill-down reuses.
+    import time as _time
+
     for name, fn in (
-        ("overview", _warm_overview),
         ("hotspot-flow", _warm_flow),
+        ("overview", _warm_overview),
         ("global-flow", _warm_global_flow),
         ("funds", _warm_funds),
     ):
@@ -76,6 +80,7 @@ def _warm_all() -> None:
             fn()
         except Exception:  # noqa: BLE001 — a failed warm must not kill the rest
             log.exception("boot warm %s failed", name)
+        _time.sleep(10)  # let Sina breathe between crawls (per-IP throttling)
 
 
 _threading.Thread(target=_warm_all, daemon=True).start()

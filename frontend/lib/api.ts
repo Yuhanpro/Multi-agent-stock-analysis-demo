@@ -275,15 +275,6 @@ export async function fetchFinancials(ticker: string, market: Market): Promise<F
 
 // ---------- market overview -------------------------------------------------
 
-export interface HotIndustry {
-  name: string;
-  change_pct: number | null;
-  amount: number | null;
-  num_companies: number | null;
-  leader_name: string | null;
-  leader_change: number | null;
-}
-
 export interface HotCompany {
   code: string;
   name: string;
@@ -291,6 +282,16 @@ export interface HotCompany {
   price: number | null;
   change_pct: number | null;
   amount: number | null;
+}
+
+export interface HotIndustry {
+  name: string;
+  change_pct: number | null;
+  amount: number | null;
+  num_companies: number | null;
+  leader_name: string | null;
+  leader_change: number | null;
+  companies: HotCompany[];
 }
 
 export interface SiteTop {

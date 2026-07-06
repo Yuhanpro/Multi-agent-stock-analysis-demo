@@ -38,16 +38,21 @@ export default function OverviewPage() {
   const [data, setData] = useState<MarketOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selInd, setSelInd] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     setData(null);
+    setSelInd(null);
     fetchMarketOverview(market)
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, [market]);
+
+  const sel = (selInd && data?.hot_industries.find((i) => i.name === selInd)) || null;
+  const activeCompanies = sel && sel.companies.length > 0 ? sel.companies : data?.hot_companies ?? [];
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
@@ -175,22 +180,40 @@ export default function OverviewPage() {
           {/* Hot industries (CN only) */}
           {mod === "market" && data.hot_industries.length > 0 && (
             <section>
-              <h2 className="mb-3 text-sm font-semibold text-heading">{t("ov.industries")}</h2>
+              <h2 className="mb-1 text-sm font-semibold text-heading">{t("ov.industries")}</h2>
+              {data.hot_industries.some((x) => x.companies.length > 0) && (
+                <p className="mb-3 text-[11px] leading-4 text-muted/70">{t("ov.indHint")}</p>
+              )}
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {data.hot_industries.map((ind, i) => (
-                  <div key={ind.name + i} className="rounded-lg border border-border bg-surface/70 p-3">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate font-semibold text-heading">{ind.name}</span>
-                      <span className={cn("font-semibold tabular-nums", tone(ind.change_pct, market))}>{fmtPct(ind.change_pct)}</span>
-                    </div>
-                    <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                      <span className="shrink-0">{t("ov.amount")} {yi(ind.amount)}{ind.num_companies ? ` · ${ind.num_companies}家` : ""}</span>
-                      {ind.leader_name && (
-                        <span className="truncate">{t("ov.leader")}: {ind.leader_name} <span className={tone(ind.leader_change, market)}>{fmtPct(ind.leader_change)}</span></span>
+                {data.hot_industries.map((ind, i) => {
+                  const clickable = ind.companies.length > 0;
+                  const active = sel?.name === ind.name;
+                  return (
+                    <button
+                      key={ind.name + i}
+                      type="button"
+                      disabled={!clickable}
+                      onClick={() => setSelInd(active ? null : ind.name)}
+                      className={cn(
+                        "rounded-lg border p-3 text-left transition-colors",
+                        active ? "border-accent bg-accent/10 ring-1 ring-accent/40" : "border-border bg-surface/70",
+                        clickable && !active && "hover:border-accent/50",
+                        !clickable && "cursor-default"
                       )}
-                    </div>
-                  </div>
-                ))}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate font-semibold text-heading">{ind.name}</span>
+                        <span className={cn("font-semibold tabular-nums", tone(ind.change_pct, market))}>{fmtPct(ind.change_pct)}</span>
+                      </div>
+                      <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                        <span className="shrink-0">{t("ov.amount")} {yi(ind.amount)}{ind.num_companies ? ` · ${ind.num_companies}家` : ""}</span>
+                        {ind.leader_name && (
+                          <span className="truncate">{t("ov.leader")}: {ind.leader_name} <span className={tone(ind.leader_change, market)}>{fmtPct(ind.leader_change)}</span></span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}
@@ -198,10 +221,23 @@ export default function OverviewPage() {
           {/* Most-active companies */}
           {mod === "market" && (
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-heading">{market === "CN" ? t("ov.companies") : t("ov.companiesMajor")}</h2>
+            <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-heading">
+              {sel
+                ? `${sel.name} · ${t("ov.companies")}`
+                : market === "CN" ? t("ov.companies") : t("ov.companiesMajor")}
+              {sel && (
+                <button
+                  type="button"
+                  onClick={() => setSelInd(null)}
+                  className="rounded-md border border-border px-2 py-0.5 text-[11px] font-normal text-muted transition-colors hover:text-heading"
+                >
+                  {t("ov.backAll")}
+                </button>
+              )}
+            </h2>
             <div className="overflow-hidden rounded-xl border border-border bg-surface">
               <div className="divide-y divide-border/60">
-                {data.hot_companies.map((c, i) => (
+                {activeCompanies.map((c, i) => (
                   <Link
                     key={c.code + i}
                     href={`/?ticker=${encodeURIComponent(c.code)}&market=${c.market}&run=1`}
