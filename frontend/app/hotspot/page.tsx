@@ -400,9 +400,9 @@ function FlowDrillView({ data, ofLabel, netLabel }: { data: FlowDrill; ofLabel: 
   const maxInd = Math.max(...data.industries.map((i) => Math.abs(i.net)), 0.01);
   const maxStk = Math.max(...(cur?.stocks.map((s) => Math.abs(s.net ?? 0)) ?? []), 0.01);
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      {/* 行业列表(可点击) */}
-      <div className="max-h-80 space-y-0.5 overflow-y-auto pr-1">
+    <div className="grid grid-cols-[104px_1fr] gap-3 sm:grid-cols-[240px_1fr] sm:gap-4 lg:grid-cols-[280px_1fr]">
+      {/* 行业列表(可点击):手机上为窄竖排 tab(名称+净额),≥sm 才显示条形 */}
+      <div className="max-h-96 space-y-0.5 overflow-y-auto pr-1 sm:max-h-80">
         {data.industries.map((i) => {
           const pos = i.net >= 0;
           const active = i.name === cur?.name;
@@ -411,15 +411,15 @@ function FlowDrillView({ data, ofLabel, netLabel }: { data: FlowDrill; ofLabel: 
               key={i.name}
               onClick={() => setSel(i.name)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors",
+                "flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors sm:flex-row sm:items-center sm:gap-2 sm:py-1",
                 active ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-border/30"
               )}
             >
-              <span className={cn("w-20 shrink-0 truncate", active ? "font-semibold text-heading" : "text-heading")}>{i.name}</span>
-              <div className="relative h-3 flex-1 overflow-hidden rounded bg-bg/40">
+              <span className={cn("w-full truncate sm:w-20 sm:shrink-0", active ? "font-semibold text-heading" : "text-heading")}>{i.name}</span>
+              <div className="relative hidden h-3 flex-1 overflow-hidden rounded bg-bg/40 sm:block">
                 <div className={cn("h-full rounded", pos ? "bg-[#ef4444]/70" : "bg-bull/60")} style={{ width: `${(Math.abs(i.net) / maxInd) * 100}%` }} />
               </div>
-              <span className={cn("w-14 shrink-0 text-right font-semibold tabular-nums", pos ? HOT : "text-bull")}>
+              <span className={cn("text-[11px] font-semibold tabular-nums sm:w-14 sm:shrink-0 sm:text-right sm:text-xs", pos ? HOT : "text-bull")}>
                 {pos ? "+" : ""}{i.net.toFixed(1)}亿
               </span>
             </button>
@@ -434,17 +434,17 @@ function FlowDrillView({ data, ofLabel, netLabel }: { data: FlowDrill; ofLabel: 
             <span className="text-muted">{netLabel} <b className={cn("tabular-nums", cur.net >= 0 ? HOT : "text-bull")}>{cur.net >= 0 ? "+" : ""}{cur.net.toFixed(1)}亿</b></span>
             <span className="text-muted">{cur.count} {ofLabel}</span>
           </div>
-          <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+          <div className="max-h-96 space-y-1 overflow-y-auto pr-1 sm:max-h-72">
             {cur.stocks.map((s) => {
               const pos = (s.net ?? 0) >= 0;
               return (
                 <div key={s.code} className="flex items-center gap-2 text-xs">
-                  <span className="w-20 shrink-0 truncate text-heading" title={s.code}>{s.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-heading sm:w-20 sm:flex-none" title={s.code}>{s.name}</span>
                   <span className="hidden w-12 shrink-0 font-mono text-[10px] text-muted sm:inline">{s.code}</span>
                   <span className={cn("w-12 shrink-0 text-right tabular-nums", (s.change_pct ?? 0) >= 0 ? HOT : "text-bull")}>
                     {(s.change_pct ?? 0) >= 0 ? "+" : ""}{pct(s.change_pct)}
                   </span>
-                  <div className="relative h-3 flex-1 overflow-hidden rounded bg-bg/40">
+                  <div className="relative hidden h-3 flex-1 overflow-hidden rounded bg-bg/40 sm:block">
                     <div className={cn("h-full rounded", pos ? "bg-[#ef4444]/70" : "bg-bull/60")} style={{ width: `${(Math.abs(s.net ?? 0) / maxStk) * 100}%` }} />
                   </div>
                   <span className={cn("w-14 shrink-0 text-right font-semibold tabular-nums", pos ? HOT : "text-bull")}>
