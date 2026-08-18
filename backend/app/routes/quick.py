@@ -41,7 +41,12 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
     # Pre-fetch market data — fail fast on bad ticker BEFORE charging the
     # rate-limit counter. This means typos don't burn quota.
     try:
-        snapshot = get_snapshot(req.ticker, req.market)
+        snapshot = await asyncio.to_thread(
+            get_snapshot,
+            req.ticker,
+            req.market,
+            req.skill == "serenity",
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
@@ -55,18 +60,39 @@ async def quick(request: Request, req: QuickRequest) -> EventSourceResponse:
     # Budget gate — cheaper than starting the SSE stream and aborting.
     budget.assert_within_budget()
 
-    # Comprehensive multi-period financials for the agent (best-effort, cached
-    # ~6h; run off-thread so the blocking upstream fetch doesn't stall the loop).
-    financials = None
-    try:
-        financials = await asyncio.to_thread(get_financials, req.ticker, req.market)
-    except Exception:
-        log.warning("financials fetch failed for %s/%s", req.ticker, req.market)
-
     async def event_gen():
-        # Send the snapshot up front so the frontend can render the chart
-        # immediately, in parallel with the LLM streaming.
+        # Establish SSE immediately after ticker validation.  Previously the
+        # route waited for a slow multi-statement fetch before returning any
+        # bytes, which made Serenity look frozen.
         yield sse_event("snapshot", snapshot.model_dump())
+        financials = None
+        if req.skill == "serenity":
+            # Supply-chain scans can start from the compact snapshot. Warm the
+            # 6h financial cache in the background for later runs rather than
+            # adding tens of seconds to this run's first token.
+            yield sse_event("progress", {"stage": "model", "message": "正在启动产业链扫描…"})
+            warm_task = asyncio.create_task(
+                asyncio.to_thread(get_financials, req.ticker, req.market)
+            )
+
+            def _consume_warm_result(task: asyncio.Task) -> None:
+                try:
+                    task.result()
+                except Exception:
+                    log.warning("background financials warm failed for %s/%s", req.ticker, req.market)
+
+            warm_task.add_done_callback(_consume_warm_result)
+        else:
+            yield sse_event("progress", {"stage": "financials", "message": "正在读取财务数据…"})
+            try:
+                financials = await asyncio.wait_for(
+                    asyncio.to_thread(get_financials, req.ticker, req.market),
+                    timeout=8,
+                )
+            except asyncio.TimeoutError:
+                log.warning("financials fetch timed out for %s/%s; using snapshot", req.ticker, req.market)
+            except Exception:
+                log.warning("financials fetch failed for %s/%s", req.ticker, req.market)
         chunks: list[str] = []
         try:
             # Quick is one LLM call against a 158k-char system prompt — Flash

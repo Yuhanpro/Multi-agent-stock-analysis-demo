@@ -39,6 +39,7 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
   const [model, setModel] = useState<string | null>(null);
   const [done, setDone] = useState<DoneInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
   const ctlRef = useRef<{ abort: () => void } | null>(null);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
     setModel(null);
     setDone(null);
     setError(null);
+    setProgress(null);
 
     const ctl = streamSSE(
       "/api/quick",
@@ -62,8 +64,13 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
               break; // handled by sibling SnapshotCard via separate fetch
             case "meta":
               setModel(data.model ?? null);
+              setProgress(null);
+              break;
+            case "progress":
+              setProgress(data?.message ?? null);
               break;
             case "token":
+              setProgress(null);
               setText((t) => t + (data?.text ?? ""));
               break;
             case "done":
@@ -126,7 +133,7 @@ export function QuickResult({ ticker, market, runId, language, skill = "buffett"
         ) : (
           <div className="text-muted text-sm flex items-center gap-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {t("quick.waiting")}
+            {progress || t("quick.waiting")}
           </div>
         )}
       </div>

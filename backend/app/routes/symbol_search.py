@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from app.services.symbol_search import MarketFilter, SymbolSuggestion, search_symbols
+from app.services.symbol_search import (
+    MarketFilter,
+    SymbolSuggestion,
+    search_symbols,
+    symbol_refresh_status,
+)
 
 router = APIRouter()
 
@@ -15,3 +20,9 @@ def symbol_search(
     limit: int = Query(8, ge=1, le=20),
 ) -> list[SymbolSuggestion]:
     return search_symbols(q=q, market=market, limit=limit)
+
+
+@router.get("/symbol-search/status")
+def symbol_search_status() -> dict[str, object]:
+    """Operational visibility for the non-blocking corpus refresh."""
+    return symbol_refresh_status()

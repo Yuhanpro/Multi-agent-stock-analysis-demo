@@ -9,6 +9,169 @@ export const API_BASE =
 
 export type Market = "US" | "CN" | "HK";
 export type AnalysisMode = "snapshot" | "quick" | "serenity" | "debate";
+export type RecommendationProfile = "conservative" | "balanced" | "aggressive";
+
+export interface StockRecommendation {
+  ticker: string;
+  name: string;
+  industry: string;
+  market: "CN";
+  price: number;
+  change_pct: number;
+  amount: number;
+  turnover_rate: number | null;
+  pe: number | null;
+  pb: number | null;
+  amplitude: number | null;
+  score: number;
+  score_breakdown: {
+    liquidity: number;
+    momentum: number;
+    valuation: number;
+    stability: number;
+  };
+  thesis: string;
+  trade_plan: {
+    signal: "watch" | "wait" | "consider";
+    signal_label: string;
+    entry_low: number;
+    entry_high: number;
+    stop_price: number;
+    target_price: number;
+    expected_upside_pct: number;
+    max_risk_pct: number;
+    reward_risk_ratio: number;
+    holding_period: string;
+    position_hint: string;
+    invalidation: string;
+  };
+  reasons: string[];
+  risks: string[];
+}
+
+export interface RecommendationResponse {
+  profile: RecommendationProfile;
+  industry: string | null;
+  available_industries: string[];
+  as_of: string;
+  candidates: StockRecommendation[];
+  universe_size: number;
+  eligible_size: number;
+  performance: {
+    tracking_since: string | null;
+    total_signals: number;
+    methodology: string;
+    windows: Array<{
+      trading_days: number;
+      sample_size: number;
+      win_rate: number | null;
+      average_return: number | null;
+      status: string;
+    }>;
+  };
+  methodology: string;
+  disclaimer: string;
+}
+
+export async function fetchRecommendations(
+  profile: RecommendationProfile = "balanced",
+  limit = 10,
+  industry?: string
+): Promise<RecommendationResponse> {
+  const params = new URLSearchParams({ profile, limit: String(limit) });
+  if (industry) params.set("industry", industry);
+  const url = `${API_BASE}/api/recommendations?${params.toString()}`;
+  return readJsonOrThrow(await fetch(url));
+}
+
+export interface RecommendationBacktest {
+  profile: RecommendationProfile;
+  years: number;
+  as_of: string;
+  universe: string[];
+  stock_names: Record<string, string>;
+  signals: number;
+  target_first_rate: number | null;
+  stop_first_rate: number | null;
+  average_trade_return: number | null;
+  max_drawdown: number | null;
+  transaction_cost_pct: number;
+  slippage_pct: number;
+  portfolio_return: number | null;
+  portfolio_annualized_return: number | null;
+  fundamentals_coverage_pct: number;
+  execution_stats: {
+    suspended: number;
+    limit_locked: number;
+    invalid_open: number;
+  };
+  benchmark: {
+    ticker: string;
+    name: string;
+    return_pct: number | null;
+    annualized_return_pct: number | null;
+    max_drawdown_pct: number | null;
+    excess_return_pct: number | null;
+  } | null;
+  equity_curve: Array<{
+    date: string;
+    strategy: number;
+    benchmark: number | null;
+  }>;
+  windows: Array<{
+    trading_days: number;
+    sample_size: number;
+    positive_rate: number | null;
+    average_return: number | null;
+    median_return: number | null;
+    benchmark_return: number | null;
+    excess_return: number | null;
+  }>;
+  trades: Array<{
+    ticker: string;
+    name: string;
+    signal_date: string;
+    entry_date: string;
+    entry_price: number;
+    exit_date: string;
+    exit_price: number;
+    exit_reason: "target" | "stop" | "time" | "open";
+    exit_reason_label: string;
+    holding_days: number;
+    return_pct: number;
+    benchmark_return_pct: number | null;
+    excess_return_pct: number | null;
+    forward_outcomes: Array<{
+      trading_days: number;
+      date: string;
+      price: number;
+      return_pct: number;
+      benchmark_return_pct: number | null;
+      excess_return_pct: number | null;
+    }>;
+  }>;
+  methodology: string;
+  limitations: string[];
+}
+
+export async function fetchRecommendationBacktest(
+  profile: RecommendationProfile = "balanced",
+  years = 3,
+  limit = 10,
+  tickers: string[] = [],
+  industry?: string
+): Promise<RecommendationBacktest> {
+  const params = new URLSearchParams({
+    profile,
+    years: String(years),
+    limit: String(limit),
+  });
+  if (tickers.length) params.set("tickers", tickers.join(","));
+  if (industry) params.set("industry", industry);
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/recommendations/backtest?${params.toString()}`)
+  );
+}
 
 export interface OHLCV {
   date: string;
@@ -656,6 +819,7 @@ export async function testPushChannel(): Promise<{ ok: boolean }> {
 export interface PaperPosition {
   ticker: string;
   market: Market;
+  name: string;
   shares: number;
   avg_cost: number;
   price: number | null;
@@ -674,8 +838,36 @@ export interface Portfolio {
   total_pnl_pct: number;
 }
 
+export interface PaperDailyPoint {
+  date: string; total: number; daily_pnl: number; daily_pnl_pct: number;
+}
+export interface PaperIntradayPoint {
+  ts: string; total: number; total_pnl: number; change: number;
+}
+export interface PaperHoldingInsight {
+  ticker: string; market: Market; name: string; market_value: number; weight: number;
+  pnl: number; pnl_pct: number;
+}
+export interface PaperAnalytics {
+  history: PaperDailyPoint[];
+  intraday: PaperIntradayPoint[];
+  holdings: PaperHoldingInsight[];
+  cash_weight: number;
+  invested_weight: number;
+  largest_weight: number;
+  profitable_positions: number;
+  losing_positions: number;
+  summary: string;
+}
+
 export async function fetchPaper(): Promise<Portfolio> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/paper`, { headers: authHeaders() }));
+}
+
+export async function fetchPaperAnalytics(days = 90): Promise<PaperAnalytics> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/paper/analytics?days=${days}`, { headers: authHeaders() })
+  );
 }
 
 export async function placePaperOrder(body: {
@@ -692,6 +884,82 @@ export async function placePaperOrder(body: {
 
 export async function resetPaper(): Promise<Portfolio> {
   return readJsonOrThrow(await fetch(`${API_BASE}/api/paper/reset`, { method: "POST", headers: authHeaders() }));
+}
+
+export interface PaperAutoConfig {
+  enabled: boolean;
+  max_positions: number;
+  position_pct: number;
+  stop_loss_pct: number;
+  take_profit_pct: number;
+  min_change_pct: number;
+  max_change_pct: number;
+  min_amount: number;
+  last_buy_date: string | null;
+}
+
+export interface PaperAutoLog {
+  id: number;
+  action: "buy" | "sell" | "skip";
+  ticker: string | null;
+  shares: number | null;
+  price: number | null;
+  reason: string;
+  created_at: string;
+}
+
+export interface PaperAutoState { config: PaperAutoConfig; logs: PaperAutoLog[]; }
+
+export async function fetchPaperAuto(): Promise<PaperAutoState> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/paper/auto`, { headers: authHeaders() }));
+}
+
+export async function savePaperAuto(config: PaperAutoConfig): Promise<PaperAutoState> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/paper/auto`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(config),
+  }));
+}
+
+export async function runPaperAuto(): Promise<PaperAutoState> {
+  return readJsonOrThrow(await fetch(`${API_BASE}/api/paper/auto/run`, {
+    method: "POST", headers: authHeaders(),
+  }));
+}
+
+export interface PaperReviewMeta {
+  id: string;
+  review_date: string;
+  status: "complete" | "rule" | "running" | "failed";
+  model: string | null;
+  cost_usd: number;
+  created_at: string;
+}
+
+export interface PaperReview extends PaperReviewMeta {
+  metrics: Record<string, unknown>;
+  content: string;
+}
+
+export async function fetchPaperReviews(): Promise<PaperReviewMeta[]> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/paper/reviews`, { headers: authHeaders() })
+  );
+}
+
+export async function fetchPaperReview(id: string): Promise<PaperReview> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/paper/reviews/${encodeURIComponent(id)}`, { headers: authHeaders() })
+  );
+}
+
+export async function generatePaperReview(): Promise<PaperReview> {
+  return readJsonOrThrow(
+    await fetch(`${API_BASE}/api/paper/reviews/generate`, {
+      method: "POST", headers: authHeaders(),
+    })
+  );
 }
 
 // ---------- funds -----------------------------------------------------------

@@ -125,6 +125,96 @@ CREATE TABLE IF NOT EXISTS paper_trades (
 );
 CREATE INDEX IF NOT EXISTS idx_paper_trades_user ON paper_trades(user_id, ts);
 
+CREATE TABLE IF NOT EXISTS paper_auto_config (
+    user_id          INTEGER PRIMARY KEY,
+    enabled          INTEGER NOT NULL DEFAULT 0,
+    max_positions    INTEGER NOT NULL DEFAULT 5,
+    position_pct     REAL NOT NULL DEFAULT 15,
+    stop_loss_pct    REAL NOT NULL DEFAULT 8,
+    take_profit_pct  REAL NOT NULL DEFAULT 15,
+    min_change_pct   REAL NOT NULL DEFAULT 1,
+    max_change_pct   REAL NOT NULL DEFAULT 7,
+    min_amount       REAL NOT NULL DEFAULT 100000000,
+    last_buy_date    TEXT,
+    updated_at       TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS paper_auto_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    action     TEXT NOT NULL,
+    ticker     TEXT,
+    shares     REAL,
+    price      REAL,
+    reason     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_auto_log_user
+    ON paper_auto_log(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS paper_daily_snap (
+    user_id      INTEGER NOT NULL,
+    date         TEXT NOT NULL,
+    cash         REAL NOT NULL,
+    market_value REAL NOT NULL,
+    total        REAL NOT NULL,
+    total_pnl    REAL NOT NULL,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (user_id, date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS paper_intraday_snap (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    date       TEXT NOT NULL,
+    ts         TEXT NOT NULL,
+    total      REAL NOT NULL,
+    total_pnl  REAL NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_intraday_user
+    ON paper_intraday_snap(user_id, date, ts);
+
+-- Generic LLM workflow ledger. New workflows (pre-market, close review,
+-- weekly report) share this queue/status/cost model.
+CREATE TABLE IF NOT EXISTS llm_jobs (
+    id         TEXT PRIMARY KEY,
+    user_id    INTEGER,
+    job_type   TEXT NOT NULL,
+    job_key    TEXT NOT NULL,
+    status     TEXT NOT NULL,
+    model      TEXT,
+    cost_usd   REAL NOT NULL DEFAULT 0,
+    error      TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    UNIQUE (user_id, job_type, job_key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_llm_jobs_user ON llm_jobs(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS paper_reviews (
+    id           TEXT PRIMARY KEY,
+    job_id       TEXT NOT NULL,
+    user_id      INTEGER NOT NULL,
+    review_date  TEXT NOT NULL,
+    status       TEXT NOT NULL,
+    metrics_json TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    model        TEXT,
+    cost_usd     REAL NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL,
+    UNIQUE (user_id, review_date),
+    FOREIGN KEY (job_id) REFERENCES llm_jobs(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_reviews_user
+    ON paper_reviews(user_id, review_date DESC);
+
 -- Every analysis run (anonymous + signed-in), for accurate all-user usage/cost.
 CREATE TABLE IF NOT EXISTS runs (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,6 +253,39 @@ CREATE TABLE IF NOT EXISTS mainline_snap (
     industry  TEXT NOT NULL,
     limit_ups INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (date, industry)
+);
+
+-- Immutable recommendation ledger. One row is kept per profile/stock/day so
+-- later performance numbers are based on what the user could actually see,
+-- rather than a backfilled list created with hindsight.
+CREATE TABLE IF NOT EXISTS recommendation_snap (
+    date          TEXT NOT NULL,
+    profile       TEXT NOT NULL,
+    ticker        TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    industry      TEXT NOT NULL,
+    rank          INTEGER NOT NULL,
+    score         REAL NOT NULL,
+    signal        TEXT NOT NULL,
+    price         REAL NOT NULL,
+    entry_low     REAL NOT NULL,
+    entry_high    REAL NOT NULL,
+    stop_price    REAL NOT NULL,
+    target_price  REAL NOT NULL,
+    created_at    TEXT NOT NULL,
+    PRIMARY KEY (date, profile, ticker)
+);
+CREATE INDEX IF NOT EXISTS idx_recommendation_snap_date
+    ON recommendation_snap(date, profile);
+
+-- Daily prices observed by the screener. These are deliberately append-only
+-- and let 5/20/60 trading-day outcomes mature without rewriting old calls.
+CREATE TABLE IF NOT EXISTS recommendation_price_snap (
+    date       TEXT NOT NULL,
+    ticker     TEXT NOT NULL,
+    price      REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (date, ticker)
 );
 """
 

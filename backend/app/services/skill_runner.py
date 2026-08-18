@@ -56,7 +56,11 @@ def _strip_frontmatter(md: str) -> str:
     return _FRONTMATTER_RE.sub("", md, count=1).lstrip()
 
 
-def _load_prompt_skill(name: str, description: str) -> Skill:
+def _load_prompt_skill(
+    name: str,
+    description: str,
+    include_files: set[str] | None = None,
+) -> Skill:
     base = PROMPTS_DIR / name
     skill_md = _strip_frontmatter((base / "SKILL.md").read_text(encoding="utf-8"))
 
@@ -67,6 +71,8 @@ def _load_prompt_skill(name: str, description: str) -> Skill:
             continue
         for path in sorted(d.glob("*")):
             if not path.is_file():
+                continue
+            if include_files is not None and path.name not in include_files:
                 continue
             body = _strip_frontmatter(path.read_text(encoding="utf-8"))
             chunks.append(f"\n\n---\n\n# {label}: {path.name}\n\n{body}")
@@ -103,9 +109,14 @@ def _load_buffett() -> Skill:
 
 
 def _load_serenity() -> Skill:
-    return _load_prompt_skill(
-        "serenity",
-        "Serenity supply-chain bottleneck and industry-chain research.",
+    # The full research skill is useful for an agent with tools, but expensive
+    # for an interactive no-tool scan. This distilled prompt preserves the
+    # bottleneck/evidence/risk method and cuts the context by over 90%.
+    prompt = (PROMPTS_DIR / "serenity" / "FAST_SYSTEM.md").read_text(encoding="utf-8")
+    return Skill(
+        name="serenity",
+        system_prompt=prompt,
+        description="Fast Serenity supply-chain bottleneck company scan.",
     )
 
 
@@ -289,15 +300,21 @@ async def stream_quick(
     )
 
     try:
+        max_output_tokens = 2300 if skill.name == "serenity" else 4096
         stream = await client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": skill.system_prompt},
                 {"role": "user", "content": user_text},
             ],
-            max_tokens=4096,
+            max_tokens=max_output_tokens,
             stream=True,
             stream_options={"include_usage": True},
+            # V4 defaults to thinking mode. For an interactive Serenity scan,
+            # hidden reasoning adds tens of seconds before any visible text.
+            # The distilled workflow already supplies the reasoning structure.
+            extra_body={"thinking": {"type": "disabled"}}
+            if skill.name == "serenity" else None,
         )
         usage = None
         stop_reason = None

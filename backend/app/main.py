@@ -21,6 +21,7 @@ from app.routes import (
     market_overview,
     paper,
     quick,
+    recommendations,
     reports,
     snapshot,
     symbol_search,
@@ -28,6 +29,7 @@ from app.routes import (
     watchlist,
 )
 from app.services import budget, db
+from app.services.symbol_search import start_symbol_refresh
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -49,6 +51,11 @@ app.add_middleware(
 )
 
 db.init_db()
+start_symbol_refresh()
+from app.services import paper_auto as _paper_auto  # noqa: E402
+_paper_auto.start()
+from app.services import paper_review as _paper_review  # noqa: E402
+_paper_review.start()
 
 # Preload the fund-search corpus in the background. Building it pulls ~27k rows
 # (~8s) the first time; warming at boot means no user search ever hits that cold
@@ -95,6 +102,7 @@ app.include_router(financials.router, prefix="/api", tags=["financials"])
 app.include_router(funds.router, prefix="/api", tags=["funds"])
 app.include_router(market_overview.router, prefix="/api", tags=["market-overview"])
 app.include_router(quick.router, prefix="/api", tags=["quick"])
+app.include_router(recommendations.router, prefix="/api", tags=["recommendations"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(alerts.router, prefix="/api", tags=["alerts"])

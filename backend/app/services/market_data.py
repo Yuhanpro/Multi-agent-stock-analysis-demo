@@ -310,7 +310,7 @@ def _cn_realtime_quote(code: str) -> RealtimeQuote | None:
 # ---------- CN (akshare) ----------------------------------------------------
 
 
-def _cn_snapshot(ticker: str) -> Snapshot:
+def _cn_snapshot(ticker: str, lightweight: bool = False) -> Snapshot:
     import akshare as ak
 
     code = ticker.zfill(6)  # 600519, 000001
@@ -382,6 +382,29 @@ def _cn_snapshot(ticker: str) -> Snapshot:
     last_close = ohlcv[-1].close
     prev_close = ohlcv[-2].close if len(ohlcv) > 1 else last_close
     change_pct = (last_close - prev_close) / prev_close if prev_close else None
+
+    # Serenity needs price history and a company identity to begin its
+    # supply-chain reasoning. Skip four slower profile/dividend/financial API
+    # calls; comprehensive fundamentals warm independently in the background.
+    if lightweight:
+        fundamentals = Fundamentals(
+            name=_symbol_name(code, "CN"),
+            currency="CNY",
+            source_detail=f"{source} (lightweight)",
+        )
+        if c_outstanding:
+            shares = _safe_float(hist.iloc[-1].get(c_outstanding))
+            if shares and last_close:
+                fundamentals.market_cap = last_close * shares
+        return Snapshot(
+            ticker=code,
+            market="CN",
+            price=last_close,
+            change_pct=change_pct,
+            ohlcv=ohlcv,
+            fundamentals=fundamentals,
+            source=source,
+        )
 
     realtime = None
     try:
@@ -649,14 +672,14 @@ def _hk_snapshot(ticker: str) -> Snapshot:
 # ---------- Public API ------------------------------------------------------
 
 
-def get_snapshot(ticker: str, market: Market) -> Snapshot:
+def get_snapshot(ticker: str, market: Market, lightweight: bool = False) -> Snapshot:
     if not ticker or not ticker.strip():
         raise ValueError("ticker is required")
     ticker = ticker.strip()
     if market == "US":
         return _us_snapshot(ticker)
     if market == "CN":
-        return _cn_snapshot(ticker)
+        return _cn_snapshot(ticker, lightweight=lightweight)
     if market == "HK":
         return _hk_snapshot(ticker)
     raise ValueError(f"unsupported market: {market!r}")
