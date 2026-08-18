@@ -165,6 +165,21 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-08-18 — 仓库与生产对齐 + footer ICP 号 + HSTS
+
+交付内容:
+
+- **仓库↔生产分叉消除** —— 线上 `~/stock-web` 源码(7 月中~7 月底未进 git)回灌仓库:新增 `frontend/app/recommend`(选股雷达,0–100 四维评分)+ backend recommend 链(routes/services/backtest/prompts/test);同步 12 个改动文件(前端 page.tsx/app-shell/quick-result/api/i18n,后端 main/quick/symbol_search/db/market_data/skill_runner)。一次性提交 `cae4f32`,此后仓库与生产一致,可从仓库正常 build 部署。
+- **footer ICP 备案号上线** —— `frontend/app/page.tsx` footer 加 `京ICP备2026040425号-1`(链接 beian.miit.gov.cn);本机 `npm run build` 出 `out/`(空 API base,origin-agnostic)→ scp `out.tgz` 到服务器 → 解压到 `/var/www/stock-web` + chown stockweb + reload nginx。公网验证 footer 已显示备案号,合规缺口补上。
+- **HSTS 上线** —— 在活动 443 配置 `/etc/nginx/conf.d/qi-agent.conf` 的 443 server 块加 `add_header Strict-Transport-Security "max-age=63072000";`(certbot 管理的文件,手动加 HSTS 在续期后保留)。公网验证响应头已含 `Strict-Transport-Security: max-age=63072000`。
+- **`deploy/nginx.conf` 更新** —— Stage B HTTPS 块从注释模板改为正式启用(qi-agent.cn + Let's Encrypt + HSTS),作为 reinstall 源真相。
+- **部署技能沉淀** —— `.claude/skills/deploy-webapp-aliyun-domain/SKILL.md`(07-09 提交)记录域名+HTTPS+ICP 全流程。
+
+阻塞项 / 遗留:
+
+- `qi-agent.conf` 由 certbot `--nginx` 管理(install.sh 部署的 `deploy/nginx.conf` 与线上 certbot 版是两份);redeploy 时注意不要用 `deploy/nginx.conf` 覆盖 certbot 版,否则丢证书自动续期。后续可统一为 `certbot certonly` + 仓库 nginx.conf。
+- 本次 footer 改动小,但走了"本机 build + scp"全量重部署;后续小文案改动可考虑更轻量方式。
+
 ### 2026-07-09 — 域名 + HTTPS + ICP 备案上线(qi-agent.cn)
 
 交付内容:
