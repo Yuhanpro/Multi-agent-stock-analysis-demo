@@ -220,7 +220,17 @@ export default function Page() {
       </section>
 
       <footer className="mt-10 border-t border-border/40 pt-6 text-xs text-muted/60">
-        {t("footer.note")}
+        <p>{t("footer.note")}</p>
+        <p className="mt-2">
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-muted"
+          >
+            京ICP备2026040425号-1
+          </a>
+        </p>
       </footer>
     </main>
   );
