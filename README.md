@@ -165,6 +165,21 @@ stock-web/
 
 倒序排列。新条目置顶。每条:日期 · 交付内容 · 阻塞项。
 
+### 2026-07-09 — 域名 + HTTPS + ICP 备案上线(qi-agent.cn)
+
+交付内容:
+
+- **域名上线** —— 站点从裸 IP `47.93.21.132:18080` 迁移到正式域名 `https://qi-agent.cn`(.cn 域名实名 + A 记录指向阿里云 ECS),开放 80/443。
+- **HTTPS** —— nginx/1.24.0 + Let's Encrypt(`certbot certonly`)上 443,全站 HTTPS;CSP 安全头生效(`default-src 'self'`、`frame-ancestors 'none'` 等)。
+- **ICP 备案** —— `.cn` 域名解析 + 大陆机器开放 web,备案流程走通。
+- **部署 playbook 沉淀** —— 整理为 `.claude/skills/deploy-webapp-aliyun-domain/SKILL.md`(DNS → 开端口两层 → nginx 反代 → 修 `Failed to fetch`/CSP/混合内容 → certbot → footer ICP)。
+
+阻塞项 / 遗留:
+
+- **footer 尚未挂 ICP 备案号** —— 按规定备案号需展示在页脚,当前底部仅有免责声明,合规上差一步。
+- **HSTS 未设** —— 可在 nginx 加 `Strict-Transport-Security`。
+- 此为部署动作,无功能代码提交(git 仅 07-09 加了 skill 文档);线上 `/recommend` 选股器与登录 / 白名单入口亦未进仓库,仓库与生产已分叉。
+
 ### 2026-07-06 — 大盘指数条常驻 + 热点桑基移出 boot 避免限流
 
 交付内容:
